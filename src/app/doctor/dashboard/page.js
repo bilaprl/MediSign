@@ -346,13 +346,23 @@ function SignPdfTab({ doctorName }) {
       );
 
       const metadata = {
-        issuer: doctorName,
+        issuer: doctorName, // <--- Ini menyimpan nama dokter yang sedang login
         date: new Date().toISOString().split("T")[0],
         hash: docHash,
         sig: signature,
       };
 
-      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
+      // 1. Tempel QR Code
+      let base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
+      
+      // 2. SUNTIKKAN NAMA DOKTER KE METADATA (AUTHOR) PDF
+      const { PDFDocument } = await import('pdf-lib');
+      const pdfDocObj = await PDFDocument.load(Buffer.from(base64Pdf, "base64"));
+      pdfDocObj.setAuthor(doctorName); // SUNTIKKAN NAMA DOKTER DI SINI!
+      const finalPdfBytes = await pdfDocObj.save();
+      base64Pdf = Buffer.from(finalPdfBytes).toString("base64");
+      // Akhir Penyuntikan Metadata
+
       const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
         type: "application/pdf",
       });
