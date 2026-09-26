@@ -1,4 +1,3 @@
-// src/app/doctor/dashboard/page.js
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -25,15 +24,27 @@ import {
   Lock,
 } from "lucide-react";
 
+// Helper untuk memicu unduhan berkas di browser
+const triggerDownload = (content, filename, type = "text/plain") => {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 export default function DoctorDashboard() {
-  // Reset default state ke 'keygen' agar Manajemen Kunci jadi tab pertama yang aktif
   const [activeTab, setActiveTab] = useState("keygen");
   const [doctorName, setDoctorName] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     setDoctorName(
-      sessionStorage.getItem("currentDoctor") || "dr. Ahmad Fauzi, Sp.JP",
+      sessionStorage.getItem("currentDoctor") || "dr. Ahmad Fauzi, Sp.JP"
     );
   }, []);
 
@@ -80,7 +91,7 @@ export default function DoctorDashboard() {
         <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t border-slate-100 sm:border-t-0">
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-full border border-amber-200 text-slate-700 text-xs font-semibold">
             <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 flex-shrink-0" />
-            <span className="whitespace-nowrap">RSA-2048 Enkripsi</span>
+            <span className="whitespace-nowrap">ECDSA P-256 Enkripsi</span>
           </div>
 
           <Button
@@ -94,7 +105,7 @@ export default function DoctorDashboard() {
         </div>
       </div>
 
-      {/* 2. Navigation Tabs (KeyGen di posisi PERTAMA) */}
+      {/* 2. Navigation Tabs */}
       <div className="border-b border-slate-200 -mx-3 px-3 sm:mx-0 sm:px-0">
         <div className="flex space-x-4 sm:space-x-8 overflow-x-auto no-scrollbar">
           <button
@@ -139,22 +150,30 @@ function KeyGenTab() {
   const [keys, setKeys] = useState(null);
   const { showToast } = useToast();
 
-  const handleGenerateKeys = async () => {
-    if (!passphrase || passphrase.length < 6) {
+  const handleGenerateKeys = async (e) => {
+    e.preventDefault();
+    if (!form.passphrase || form.passphrase.length < 6) {
       showToast("warning", "Passphrase minimal 6 karakter.");
       return;
     }
 
-    setIsGenerating(true);
+    setIsLoading(true);
     try {
-      const generated = await generateKeys({ passphrase });
+      const generated = await generateKeys({ passphrase: form.passphrase });
       setKeys(generated);
       showToast("success", "Pasangan kunci ECDSA P-256 berhasil dibuat!");
     } catch (error) {
       showToast("error", error.message || "Gagal membuat pasangan kunci.");
     } finally {
-      setIsGenerating(false);
+      setIsLoading(false);
     }
+  };
+
+  const handleDownload = (type) => {
+    if (!keys) return;
+    const content = type === "public" ? keys.public : keys.private;
+    const filename = type === "public" ? "public_key.pem" : "private_key.pem";
+    triggerDownload(content, filename);
   };
 
   return (
@@ -168,14 +187,11 @@ function KeyGenTab() {
             </h2>
             <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
               Buat pasangan kunci Kriptografi (<i>Public & Private Key</i>)
-              berbasis standar RSA/ECDSA.
+              berbasis standar ECDSA P-256.
             </p>
           </div>
 
-          <form
-            onSubmit={handleGenerateKeys}
-            className="space-y-4 sm:space-y-5"
-          >
+          <form onSubmit={handleGenerateKeys} className="space-y-4 sm:space-y-5">
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-xs sm:text-sm font-semibold text-slate-700">
                 Nama Lengkap & Gelar
@@ -208,7 +224,7 @@ function KeyGenTab() {
                 <Input
                   type={showPassphrase ? "text" : "password"}
                   className="bg-slate-50 border-slate-200 rounded-xl pr-12 text-sm"
-                  placeholder="Minimal 8 karakter"
+                  placeholder="Minimal 6 karakter"
                   value={form.passphrase}
                   onChange={(e) =>
                     setForm({ ...form, passphrase: e.target.value })
@@ -258,16 +274,17 @@ function KeyGenTab() {
               <div className="space-y-2.5 sm:space-y-3">
                 <Button
                   variant="outline"
+                  onClick={() => handleDownload("public")}
                   className="w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 bg-white hover:bg-slate-50 rounded-xl text-xs sm:text-sm"
                 >
                   <Download className="w-4 h-4" /> Unduh Public Key (.pem)
                 </Button>
                 <Button
                   variant="secondary"
+                  onClick={() => handleDownload("private")}
                   className="w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm"
                 >
-                  <Download className="w-4 h-4 text-teal-500" /> Unduh Private
-                  Key (.pem)
+                  <Download className="w-4 h-4 text-teal-500" /> Unduh Private Key (.pem)
                 </Button>
               </div>
 
@@ -312,7 +329,7 @@ function SignPdfTab({ doctorName }) {
     if (!pdfFile || !keyFile || !passphrase) {
       showToast(
         "error",
-        "Dokumen PDF, Kunci Privat, dan Passphrase wajib diisi.",
+        "Dokumen PDF, Kunci Privat, dan Passphrase wajib diisi."
       );
       return;
     }
@@ -325,7 +342,7 @@ function SignPdfTab({ doctorName }) {
       const { signature, docHash } = await signDocument(
         pdfBuffer,
         keyText,
-        passphrase,
+        passphrase
       );
 
       const metadata = {
@@ -335,7 +352,7 @@ function SignPdfTab({ doctorName }) {
         sig: signature,
       };
 
-      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPosition);
+      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
       const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
         type: "application/pdf",
       });
@@ -349,7 +366,7 @@ function SignPdfTab({ doctorName }) {
     } catch (error) {
       showToast(
         "error",
-        error.message || "Gagal memproses tanda tangan digital.",
+        error.message || "Gagal memproses tanda tangan digital."
       );
     } finally {
       setIsLoading(false);
@@ -358,7 +375,6 @@ function SignPdfTab({ doctorName }) {
 
   return (
     <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white">
-      {/* Tab Title Section */}
       <div className="mb-6 sm:mb-8 flex items-center gap-3.5 sm:gap-4">
         <div className="bg-[#4F648A] text-white p-3 rounded-xl shadow-sm flex-shrink-0">
           <FolderPlus className="w-5 h-5 sm:w-7 sm:h-7" />
@@ -375,7 +391,6 @@ function SignPdfTab({ doctorName }) {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
-        {/* Left Column: Dropzones */}
         <div className="lg:col-span-7 space-y-4 sm:space-y-6">
           <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
@@ -410,7 +425,6 @@ function SignPdfTab({ doctorName }) {
           </div>
         </div>
 
-        {/* Right Column: Configurations & Action */}
         <div className="lg:col-span-5">
           <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6">
             <h3 className="font-semibold text-base sm:text-lg mb-4 sm:mb-6 flex items-center gap-2.5 border-b border-white/10 pb-4">
@@ -419,7 +433,6 @@ function SignPdfTab({ doctorName }) {
             </h3>
 
             <div className="space-y-4 sm:space-y-6">
-              {/* Passphrase Input */}
               <div className="space-y-2">
                 <label className="text-xs sm:text-sm font-medium text-slate-300">
                   Passphrase Kunci Privat
@@ -436,11 +449,6 @@ function SignPdfTab({ doctorName }) {
                     type="button"
                     onClick={() => setShowPassphrase(!showPassphrase)}
                     className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-white transition-colors focus:outline-none min-w-[36px] justify-center"
-                    aria-label={
-                      showPassphrase
-                        ? "Sembunyikan Passphrase"
-                        : "Tampilkan Passphrase"
-                    }
                   >
                     {showPassphrase ? (
                       <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -451,7 +459,6 @@ function SignPdfTab({ doctorName }) {
                 </div>
               </div>
 
-              {/* QR Position Select */}
               <div className="space-y-2">
                 <label className="text-xs sm:text-sm font-medium text-slate-300">
                   Posisi QR Code Tanda Tangan
@@ -490,7 +497,6 @@ function SignPdfTab({ doctorName }) {
                 </div>
               </div>
 
-              {/* Submit Button */}
               <div className="pt-2">
                 <Button
                   onClick={handleSign}
