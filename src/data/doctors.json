@@ -1,0 +1,20 @@
+[
+  {
+    "id": "doc_001",
+    "name": "dr. Budi Santoso, Sp.PD",
+    "sip": "123/SIP/2026/001",
+    "specialty": "Penyakit Dalam"
+  },
+  {
+    "id": "doc_002",
+    "name": "dr. Siti Aminah, Sp.A",
+    "sip": "123/SIP/2026/002",
+    "specialty": "Anak"
+  },
+  {
+    "id": "doc_003",
+    "name": "dr. Ahmad Fauzi, Sp.JP",
+    "sip": "123/SIP/2026/003",
+    "specialty": "Jantung dan Pembuluh Darah"
+  }
+]
