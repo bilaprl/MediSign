@@ -10,7 +10,7 @@ import FileDropzone from "@/components/ui/FileDropzone";
 import Alert from "@/components/ui/Alert";
 import QrScanner from "@/components/features/QrScanner";
 import { useToast } from "@/hooks/useToast";
-import { verifySignature, signDocument, hashBuffer } from "@/utils/cryptoUtils";
+import { verifySignature, signDocument, hashBuffer, generateKeys } from "@/utils/cryptoUtils";
 import { appendQrToPdf } from "@/utils/pdfUtils";
 import {
   ShieldCheck,
@@ -28,7 +28,7 @@ import {
   Lock,
 } from "lucide-react";
 
-// Helper untuk memicu unduhan file
+// Helper untuk memicu unduhan file secara aman (Delay revocation agar file tidak 0 KB)
 const triggerDownload = (content, filename, type = "application/pdf") => {
   const blob = content instanceof Blob ? content : new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -38,7 +38,8 @@ const triggerDownload = (content, filename, type = "application/pdf") => {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Beri jeda 1 detik agar browser selesai mengalirkan data file
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 export default function PharmacistPortal() {
@@ -152,16 +153,15 @@ function VerifyTab() {
 
       // 1. Ekstrak Nama Dokter dari Metadata PDF (Author)
       const pdfDoc = await PDFDocument.load(pdfBuffer);
-      const pdfAuthor = pdfDoc.getAuthor() || ""; // Mendapatkan nama yang disuntikkan dokter
+      const pdfAuthor = pdfDoc.getAuthor() || "";
       
       // 2. Cari Data Lengkap Dokter di JSON berdasarkan nama Author
       let matchedDoctor = doctorsData.find(doc => 
          pdfAuthor && doc.name.toLowerCase().includes(pdfAuthor.toLowerCase())
       );
 
-      // Fallback jika tidak ditemukan (mungkin PDF lama)
       if (!matchedDoctor) {
-         matchedDoctor = { name: "Dokter Tidak Teridentifikasi", sip: "Tidak diketahui" };
+         matchedDoctor = { name: "Dokter Tidak Teridentifikasi", sip: "Tidak diketahui", specialty: "Umum" };
       }
 
       // 3. Simulasi verifikasi kriptografis matematis
@@ -173,6 +173,7 @@ function VerifyTab() {
           metadata: {
             issuer: matchedDoctor.name,
             sip: matchedDoctor.sip,
+            specialty: matchedDoctor.specialty || "Umum",
             timestamp: new Date().toLocaleDateString("id-ID", {
               day: "numeric",
               month: "long",
@@ -301,33 +302,36 @@ function VerifyTab() {
                 </div>
 
                 <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3.5 sm:space-y-4">
-                <div className="flex items-start gap-3">
-                  <UserSquare2 className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">
-                      Penerbit Resmi
-                    </p>
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 truncate">
-                      {verifyResult.metadata?.issuer || "-"}
-                    </p>
-                    <p className="text-[11px] sm:text-xs text-slate-600">
-                      SIP: {verifyResult.metadata?.sip || "-"}
-                    </p>
+                  <div className="flex items-start gap-3">
+                    <UserSquare2 className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">
+                        Penerbit Resmi
+                      </p>
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 truncate">
+                        {verifyResult.metadata?.issuer || "-"}
+                      </p>
+                      <p className="text-[11px] sm:text-xs text-slate-600">
+                        SIP: {verifyResult.metadata?.sip || "-"}
+                      </p>
+                      <p className="text-[11px] sm:text-xs font-semibold text-blue-600 mt-0.5">
+                        Spesialisasi: {verifyResult.metadata?.specialty || "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full h-px bg-slate-100"></div>
+                  <div className="flex items-start gap-3">
+                    <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">
+                        Nilai Hash Dokumen Asli (SHA-256)
+                      </p>
+                      <p className="text-xs font-mono font-medium text-slate-700 mt-0.5 truncate bg-slate-50 p-1.5 rounded">
+                        {verifyResult.metadata?.hash || "-"}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="w-full h-px bg-slate-100"></div>
-                <div className="flex items-start gap-3">
-                  <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">
-                      Nilai Hash Dokumen Asli (SHA-256)
-                    </p>
-                    <p className="text-xs font-mono font-medium text-slate-700 mt-0.5 truncate bg-slate-50 p-1.5 rounded">
-                      {verifyResult.metadata?.hash || "-"}
-                    </p>
-                  </div>
-                </div>
-              </div>
               </div>
 
               <Button
@@ -392,7 +396,6 @@ function ScannerTab() {
         </div>
       </div>
 
-      {/* Terhubungkan dengan callback handler */}
       <QrScanner onScanResult={(data) => setLastScannedResult(data)} />
     </Card>
   );
@@ -402,16 +405,43 @@ function CountersignTab() {
   const [pdfFile, setPdfFile] = useState(null);
   const [keyFile, setKeyFile] = useState(null);
   const [passphrase, setPassphrase] = useState("");
-  const [showPassphrase, setShowPassphrase] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
+  const [genPassphrase, setGenPassphrase] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Fungsi untuk Membuat Kunci Apoteker
+  const handleGenerateKeys = async () => {
+    if (!genPassphrase) {
+      showToast("error", "Masukkan sandi pelindung (passphrase) terlebih dahulu!");
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const { publicKey, privateKey } = await generateKeys({ passphrase: genPassphrase });
+
+      const pubBlob = new Blob([publicKey], { type: "text/plain" });
+      const privBlob = new Blob([privateKey], { type: "text/plain" });
+
+      triggerDownload(pubBlob, "public_key_apoteker.pem", "text/plain");
+      setTimeout(() => {
+        triggerDownload(privBlob, "private_key_apoteker.pem", "text/plain");
+      }, 500);
+
+      showToast("success", "Kunci Apoteker berhasil dibuat dan diunduh otomatis.");
+      setGenPassphrase("");
+    } catch (error) {
+      showToast("error", "Gagal membuat kunci: " + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Fungsi untuk Tanda Tangan Ganda (Countersign)
   const handleCountersign = async () => {
     if (!pdfFile || !keyFile || !passphrase) {
-      showToast(
-        "error",
-        "Mohon lengkapi dokumen, kunci privat apoteker, dan passphrase."
-      );
+      showToast("error", "Mohon lengkapi PDF Resep, Kunci Privat (.pem), dan Passphrase.");
       return;
     }
 
@@ -420,155 +450,156 @@ function CountersignTab() {
       const pdfBuffer = await pdfFile.arrayBuffer();
       const keyText = await keyFile.text();
 
-      const { signature, docHash } = await signDocument(
-        pdfBuffer,
-        keyText,
-        passphrase
-      );
+      // Pengecekan ukuran dan validitas isi Kunci Privat
+      if (!keyText || keyText.trim().length === 0) {
+        showToast("error", "File Kunci Privat yang diunggah kosong (0 KB). Silakan buat ulang kunci.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!keyText.includes("PRIVATE KEY")) {
+        showToast("error", "File yang diunggah bukan Kunci Privat (.pem) yang valid! Mohon unggah private_key_apoteker.pem.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Membubuhkan tanda tangan kriptografi
+      const { signature, docHash } = await signDocument(pdfBuffer, keyText, passphrase);
 
       const metadata = {
-        apoteker: "Apt. Budi Santoso, S.Farm",
-        status: "Telah Diserahkan",
+        issuer: "Apoteker Bertugas",
         date: new Date().toISOString().split("T")[0],
         hash: docHash,
         sig: signature,
+        status: "COUNTERSIGNED"
       };
 
-      // Menempelkan QR Apoteker di Pojok Kiri Bawah agar tidak menimpa QR Dokter
+      // Menempelkan QR Code kedua di pojok kiri bawah (bottom-left)
       const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, "bottom-left");
+
       const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
         type: "application/pdf",
       });
 
       triggerDownload(pdfBlob, `countersigned_${pdfFile.name}`, "application/pdf");
-
-      showToast(
-        "success",
-        "Pengesahan Apoteker berhasil ditambahkan (Countersigned) dan PDF terunduh."
-      );
+      showToast("success", "Pengesahan berhasil! PDF Countersign telah diunduh.");
 
       setPdfFile(null);
       setKeyFile(null);
       setPassphrase("");
-    } catch (e) {
-      showToast(
-        "error",
-        e.message || "Gagal memproses pengesahan dokumen. Periksa Passphrase/Key."
-      );
+    } catch (error) {
+      showToast("error", error.message || "Passphrase salah atau format Kunci Privat tidak cocok.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white">
-      <div className="mb-6 sm:mb-8 flex items-center gap-3.5 sm:gap-4">
-        <div className="bg-[#4F648A] text-white p-2.5 sm:p-3.5 rounded-xl shadow-sm flex-shrink-0">
-          <CheckCircle className="w-5 h-5 sm:w-7 sm:h-7" />
+    <div className="space-y-6">
+      {/* 1. KOTAK GENERATOR KUNCI APOTEKER */}
+      <Card className="p-5 sm:p-6 rounded-2xl border border-blue-100 bg-blue-50/50">
+        <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-blue-600" />
+              Pembangkit Kunci Asimetris (Key Generation)
+            </h3>
+            <p className="text-xs text-slate-600 mt-1 max-w-md">
+              Buat pasangan Kunci Publik dan Kunci Privat berstandar ECDSA (P-256) khusus untuk identitas Apoteker Anda.
+            </p>
+          </div>
+          <div className="flex w-full md:w-auto gap-2">
+            <Input
+              type="password"
+              placeholder="Sandi pelindung kunci..."
+              value={genPassphrase}
+              onChange={(e) => setGenPassphrase(e.target.value)}
+              className="bg-white text-sm"
+            />
+            <Button
+              onClick={handleGenerateKeys}
+              disabled={isGenerating || !genPassphrase}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+            >
+              {isGenerating ? "Memproses..." : "Buat Pasang Kunci"}
+            </Button>
+          </div>
         </div>
-        <div>
+      </Card>
+
+      {/* 2. KOTAK UTAMA PENGESAHAN (COUNTERSIGN) */}
+      <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white">
+        <div className="mb-6 sm:mb-8 border-b border-slate-100 pb-4 sm:pb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
             Pengesahan Apoteker (Countersign)
           </h2>
-          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-            Bubuhkan tanda tangan digital sekunder sebagai bukti hukum
-            penyerahan obat.
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            Bubuhkan tanda tangan digital sekunder (menggunakan Kunci Privat Apoteker) sebagai bukti sah obat telah diserahkan.
           </p>
         </div>
-      </div>
 
-      <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
-        {/* Left Column: Dropzones */}
-        <div className="lg:col-span-7 space-y-4 sm:space-y-6">
-          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
-            <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
-              <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
-                1
-              </span>
-              Unggah PDF Resep (Terverifikasi)
-            </label>
-            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="grid lg:grid-cols-12 gap-6 sm:gap-8">
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6">
+            <div>
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 mb-2 sm:mb-3">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] sm:text-xs">1</span>
+                Unggah PDF Resep (Dari Dokter)
+              </label>
               <FileDropzone
-                id="pdf-countersign"
-                accept=".pdf"
                 onFileSelect={setPdfFile}
+                accept=".pdf"
                 selectedFile={pdfFile}
+                placeholder="Klik untuk mengunggah atau seret file PDF ke sini"
               />
             </div>
-          </div>
-
-          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
-            <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
-              <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
-                2
-              </span>
-              Unggah Kunci Privat Apoteker (.pem)
-            </label>
-            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+            <div>
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 mb-2 sm:mb-3">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] sm:text-xs">2</span>
+                Unggah Kunci Privat Apoteker (.pem)
+              </label>
               <FileDropzone
-                id="key-countersign"
-                accept=".pem"
                 onFileSelect={setKeyFile}
+                accept=".pem"
                 selectedFile={keyFile}
+                placeholder="Unggah private_key_apoteker.pem"
               />
             </div>
           </div>
-        </div>
 
-        {/* Right Column: Configurations */}
-        <div className="lg:col-span-5">
-          <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6">
-            <h3 className="font-semibold text-base sm:text-lg mb-4 sm:mb-6 flex items-center gap-2.5 border-b border-white/10 pb-4">
-              <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 flex-shrink-0" />
-              <span>Otorisasi Pengesahan</span>
-            </h3>
-
-            <div className="space-y-4 sm:space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs sm:text-sm font-medium text-slate-300">
-                  Passphrase Kunci Privat
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassphrase ? "text" : "password"}
+          <div className="lg:col-span-5">
+            <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-8 shadow-xl sticky top-8 text-white">
+              <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
+                <h3 className="text-base sm:text-lg font-bold text-white">Otorisasi Pengesahan</h3>
+              </div>
+              <div className="space-y-5 sm:space-y-6">
+                <div>
+                  <label className="block text-[11px] sm:text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
+                    Passphrase Kunci Privat Apoteker
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="Masukkan sandi pelindung kunci..."
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="Masukkan sandi pelindung"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all pr-11"
+                    className="w-full bg-white text-slate-900 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassphrase(!showPassphrase)}
-                    className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-white transition-colors focus:outline-none min-w-[36px] justify-center"
-                    aria-label={showPassphrase ? "Sembunyikan" : "Tampilkan"}
-                  >
-                    {showPassphrase ? (
-                      <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
-                    ) : (
-                      <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                    )}
-                  </button>
                 </div>
-              </div>
-
-              <div className="pt-2">
                 <Button
                   onClick={handleCountersign}
-                  isLoading={isLoading}
-                  variant="primary"
-                  className="w-full py-3.5 text-xs sm:text-sm font-bold shadow-teal-900/20"
+                  disabled={isLoading}
+                  className="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-900 font-bold text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.2)]"
                 >
-                  {isLoading ? "Memproses..." : "Beri Stempel & TTD Digital"}
+                  {isLoading ? "Memproses..." : "Beri Stempel Pengesahan"}
                 </Button>
-                <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-3.5 sm:mt-5 leading-relaxed">
-                  Dokumen akan ditambahkan <i>Digital Signature</i> lapis kedua
-                  milik Anda.
+                <p className="text-center text-[10px] sm:text-xs text-slate-400 font-medium leading-relaxed">
+                  Dokumen akan ditambahkan Digital Signature lapis kedua milik Anda (Countersign).
                 </p>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

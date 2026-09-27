@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { Camera, CameraOff, RefreshCw, ScanLine, ShieldCheck } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useToast } from "@/hooks/useToast";
+import doctorsData from "@/data/doctors.json"; // <-- Import data dokter
 
 export default function QrScanner({ onScanResult }) {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -16,9 +17,17 @@ export default function QrScanner({ onScanResult }) {
     try {
       // Wajib format JSON dari MediSign
       const dataObj = JSON.parse(rawText);
+      const issuerName = dataObj.issuer || "Dokter Penanggung Jawab";
+      
+      // Cari kecocokan data dokter dari JSON
+      const matchedDoctor = doctorsData.find(doc => 
+        doc.name.toLowerCase().includes(issuerName.toLowerCase())
+      );
       
       const parsedResult = {
-        issuer: dataObj.issuer || "Dokter Penanggung Jawab",
+        issuer: issuerName,
+        sip: matchedDoctor ? matchedDoctor.sip : "-",
+        specialty: matchedDoctor ? matchedDoctor.specialty : "Umum",
         date: dataObj.date || new Date().toISOString().split("T")[0],
         hash: dataObj.hash || "-",
         signature: dataObj.sig || "-",
@@ -168,9 +177,19 @@ export default function QrScanner({ onScanResult }) {
 
           {scannedData ? (
             <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-3 text-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-slate-500 font-medium">Dokter Penerbit:</span>
-                <span className="font-bold text-slate-900">{scannedData.issuer}</span>
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+                <span className="text-slate-500 font-medium mt-1">Dokter Penerbit:</span>
+                <div className="text-right">
+                  <p className="font-bold text-slate-900">{scannedData.issuer}</p>
+                  {scannedData.sip !== "-" && (
+                    <p className="text-[11px] text-slate-500 mt-0.5">SIP: {scannedData.sip}</p>
+                  )}
+                  {scannedData.specialty !== "Umum" && (
+                    <p className="text-[11px] font-semibold text-blue-600 mt-0.5">
+                      Spesialisasi: {scannedData.specialty}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <span className="text-slate-500 font-medium">Tanggal Resep:</span>

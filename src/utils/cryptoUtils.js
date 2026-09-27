@@ -1,3 +1,4 @@
+// src/utils/cryptoUtils.js
 "use server";
 import crypto from "crypto";
 
@@ -18,7 +19,8 @@ export async function generateKeys({ passphrase }) {
       (err, publicKey, privateKey) => {
         if (err)
           return reject(new Error("Gagal membuat kunci: " + err.message));
-        resolve({ public: publicKey, private: privateKey });
+        // FIX: Ubah dari { public, private } menjadi { publicKey, privateKey }
+        resolve({ publicKey, privateKey });
       },
     );
   });
