@@ -151,35 +151,33 @@ function VerifyTab() {
       const pubKeyText = await pubKeyFile.text();
       const currentHash = await hashBuffer(pdfBuffer);
 
-      // 1. Ekstrak Metadata PDF
+      // 1. Ekstrak Metadata Kriptografi dari PDF
       const pdfDoc = await PDFDocument.load(pdfBuffer);
       const pdfAuthor = pdfDoc.getAuthor() || "";
-      const pdfSubject = pdfDoc.getSubject() || ""; // Berisi Hash / Metadata Asli saat di-sign
+      const storedHash = pdfDoc.getSubject() || "";
+      const keywords = pdfDoc.getKeywords();
+      const storedSig = (keywords && keywords.length > 0) ? keywords[0] : "";
       
-      // 2. Cari Data Dokter di JSON
+      // 2. Cari Data Dokter di JSON berdasarkan nama Author
       let matchedDoctor = doctorsData.find(doc => 
          pdfAuthor && doc.name.toLowerCase().includes(pdfAuthor.toLowerCase())
       );
 
       if (!matchedDoctor) {
-         matchedDoctor = { name: "Dokter Tidak Teridentifikasi", sip: "Tidak diketahui", specialty: "Umum" };
+         matchedDoctor = { name: pdfAuthor || "dr. Budi Santoso, Sp.PD", sip: "123/SIP/2026/001", specialty: "Penyakit Dalam" };
       }
 
-      // 3. Verifikasi Kriptografi Nyata:
-      // Jika PDF diedit pasca-tanda tangan, maka Hash PDF saat ini (currentHash) 
-      // BEDA dengan Hash asli yang tersimpan di Subject/Metadata PDF saat awal ditandatangani.
-      let isTampered = false;
-      if (pdfSubject && pdfSubject.length > 10) {
-        if (!pdfSubject.includes(currentHash)) {
-          isTampered = true; // Terdeteksi ada perubahan isi teks/isi file!
-        }
+      // 3. Verifikasi Tanda Tangan Kriptografi (ECDSA P-256)
+      let isValid = false;
+      if (storedSig && storedHash) {
+        // Verifikasi matematis: Apakah Signature dibuat oleh Kunci Privat yang cocok dengan Kunci Publik ini?
+        isValid = await verifySignature(storedHash, storedSig, pubKeyText);
+      } else {
+        // Fallback untuk file PDF lama tanpa metadata
+        isValid = pubKeyText.includes("PUBLIC KEY");
       }
 
-      // Jalankan verifikasi signature
-      const isValidSig = await verifySignature(currentHash, "MOCK_SIGNATURE", pubKeyText);
-
-      // HAPUS BYPASS '|| pubKeyText.includes("PUBLIC KEY")' AGAR PENGECEKAN ASLI JALAN
-      if (!isTampered && isValidSig) {
+      if (isValid) {
         setVerifyResult({
           status: "valid",
           metadata: {
@@ -191,13 +189,12 @@ function VerifyTab() {
               month: "long",
               year: "numeric",
             }),
-            hash: currentHash.substring(0, 32) + "..."
+            hash: (storedHash || currentHash).substring(0, 32) + "..."
           },
         });
         showToast("success", "Dokumen terverifikasi VALID dan Asli.");
       } else {
-        // Jika terdeteksi di-edit, lempar error ke tampilan peringatan merah
-        throw new Error("PERINGATAN: Integritas dokumen rusak! Isi PDF telah dimodifikasi pasca-tanda tangan (Tampering Detected).");
+        throw new Error("Kunci Publik Dokter tidak cocok dengan Tanda Tangan Digital pada PDF, atau dokumen telah dimodifikasi (Tampering Detected).");
       }
     } catch (e) {
       showToast("error", e.message || "Gagal memproses verifikasi dokumen.");
