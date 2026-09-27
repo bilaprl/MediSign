@@ -3,18 +3,33 @@
 import { PDFDocument } from "pdf-lib";
 import QRCode from "qrcode";
 
-export async function appendQrToPdf(pdfBuffer, metadata, position = "bottom-right") {
+export async function appendQrToPdf(
+  pdfBuffer,
+  metadata,
+  position = "bottom-right",
+) {
   // 1. Muat dokumen PDF
   const pdfDoc = await PDFDocument.load(pdfBuffer);
 
-  // 2. Suntikkan metadata kriptografi ke properti internal dokumen PDF
+  // 2. Suntikkan metadata kriptografi & PAYLOAD ke properti internal dokumen PDF
   if (metadata.issuer) pdfDoc.setAuthor(metadata.issuer);
   if (metadata.hash) pdfDoc.setSubject(metadata.hash);
   if (metadata.sig) pdfDoc.setKeywords([metadata.sig]);
 
+  // PERBAIKAN PENTING: Suntikkan rincian resep (payload) ke metadata Creator
+  // agar portal Apoteker bisa mengekstrak dan menampilkan teks resep di layar
+  if (metadata.payload) {
+    const payloadString =
+      typeof metadata.payload === "string"
+        ? metadata.payload
+        : JSON.stringify(metadata.payload);
+    pdfDoc.setCreator(payloadString);
+  }
+
   const pages = pdfDoc.getPages();
-  const targetPage = position === "new-page" ? pdfDoc.addPage() : pages[pages.length - 1];
-  
+  const targetPage =
+    position === "new-page" ? pdfDoc.addPage() : pages[pages.length - 1];
+
   const { width, height } = targetPage.getSize();
 
   // 3. Buat QR Code sebagai gambar PNG murni dari JSON

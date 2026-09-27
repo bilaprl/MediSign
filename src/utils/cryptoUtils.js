@@ -19,11 +19,39 @@ export async function generateKeys({ passphrase }) {
       (err, publicKey, privateKey) => {
         if (err)
           return reject(new Error("Gagal membuat kunci: " + err.message));
-        // FIX: Ubah dari { public, private } menjadi { publicKey, privateKey }
         resolve({ publicKey, privateKey });
       },
     );
   });
+}
+
+export async function hashPayload(payloadString) {
+  return crypto
+    .createHash("sha256")
+    .update(payloadString, "utf8")
+    .digest("hex");
+}
+
+export async function signPayload(payloadString, privateKeyPem, passphrase) {
+  try {
+    const payloadHash = await hashPayload(payloadString);
+
+    // Menandatangani nilai HASH dari payload
+    const sign = crypto.createSign("SHA256");
+    sign.update(payloadHash, "utf8");
+    sign.end();
+
+    const privateKey = crypto.createPrivateKey({
+      key: privateKeyPem,
+      format: "pem",
+      passphrase: passphrase,
+    });
+
+    const signature = sign.sign(privateKey, "base64");
+    return { signature, payloadHash };
+  } catch (error) {
+    throw new Error("Passphrase salah atau format Kunci Privat tidak valid.");
+  }
 }
 
 export async function hashBuffer(arrayBuffer) {
@@ -35,7 +63,7 @@ export async function signDocument(pdfArrayBuffer, privateKeyPem, passphrase) {
   try {
     const docHash = await hashBuffer(pdfArrayBuffer);
     const sign = crypto.createSign("SHA256");
-    sign.update(docHash);
+    sign.update(docHash, "utf8");
     sign.end();
 
     const privateKey = crypto.createPrivateKey({
@@ -51,10 +79,14 @@ export async function signDocument(pdfArrayBuffer, privateKeyPem, passphrase) {
   }
 }
 
-export async function verifySignature(docHash, signatureBase64, publicKeyPem) {
+export async function verifySignature(
+  dataToVerify,
+  signatureBase64,
+  publicKeyPem,
+) {
   try {
     const verify = crypto.createVerify("SHA256");
-    verify.update(docHash);
+    verify.update(dataToVerify, "utf8");
     verify.end();
 
     return verify.verify(publicKeyPem, signatureBase64, "base64");

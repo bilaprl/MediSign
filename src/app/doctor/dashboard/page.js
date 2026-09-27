@@ -1,5 +1,5 @@
-// src/app/doctor/dashboard/page.js
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import FileDropzone from "@/components/ui/FileDropzone";
 import { useToast } from "@/hooks/useToast";
-import { generateKeys, signDocument } from "@/utils/cryptoUtils";
+import { generateKeys, signPayload } from "@/utils/cryptoUtils";
 import { appendQrToPdf } from "@/utils/pdfUtils";
 
 import {
@@ -39,20 +39,28 @@ const triggerDownload = (content, filename, type = "text/plain") => {
   URL.revokeObjectURL(url);
 };
 
+// Helper untuk mengubah base64 menjadi Blob di sisi Client tanpa modul Node.js "Buffer"
+const base64ToBlob = (base64, type = "application/pdf") => {
+  const byteCharacters = atob(base64);
+  const byteArray = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteArray[i] = byteCharacters.charCodeAt(i);
+  }
+  return new Blob([byteArray], { type });
+};
+
 export default function DoctorDashboard() {
   const [activeTab, setActiveTab] = useState("keygen");
   const [doctor, setDoctor] = useState({ name: "", sip: "", id: "" });
   const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
 
-  // 1. MEMBACA SESI LOGIN
   useEffect(() => {
     const authData = sessionStorage.getItem("doctorAuth");
     if (authData) {
       setDoctor(JSON.parse(authData));
       setIsInitializing(false);
     } else {
-      // Jika tidak login, kembalikan ke halaman login
       router.push("/doctor/login");
     }
   }, [router]);
@@ -62,7 +70,6 @@ export default function DoctorDashboard() {
     router.push("/doctor/login");
   };
 
-  // Tampilkan layar loading singkat sebelum data sesi terbaca
   if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium font-['Montserrat']">
@@ -93,7 +100,6 @@ export default function DoctorDashboard() {
                 Sesi Aktif
               </span>
             </div>
-
             <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight truncate">
               {doctor.name}
             </h1>
@@ -174,12 +180,8 @@ function KeyGenTab({ doctor }) {
 
     setIsLoading(true);
     try {
-      // Generate kunci via Server Action (Aman, ECDSA P-256)
       const generated = await generateKeys({ passphrase });
       setKeys(generated);
-
-      // 2. SIMPAN PUBLIC KEY DI LOCAL STORAGE (Pengganti Database)
-      // Disimpan berdasarkan SIP agar apoteker bisa mencari kunci spesifik milik dokter ini
       localStorage.setItem(`publicKey_${doctor.sip}`, generated.publicKey);
 
       showToast(
@@ -195,7 +197,6 @@ function KeyGenTab({ doctor }) {
 
   const handleDownload = (type) => {
     if (!keys) return;
-    // Sesuaikan dengan properties dari cryptoUtils.js { publicKey, privateKey }
     const content = type === "public" ? keys.publicKey : keys.privateKey;
     const filename = type === "public" ? "public_key.pem" : "private_key.pem";
     triggerDownload(content, filename);
@@ -221,7 +222,6 @@ function KeyGenTab({ doctor }) {
             onSubmit={handleGenerateKeys}
             className="space-y-4 sm:space-y-5"
           >
-            {/* Form Read-Only dari Sesi Login */}
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-xs sm:text-sm font-semibold text-slate-700">
                 Nama Lengkap & Gelar (Otomatis)
@@ -353,11 +353,24 @@ function SignPdfTab({ doctor }) {
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
+  // STATE BARU UNTUK PAYLOAD DATA RESEP
+  const [patientName, setPatientName] = useState("");
+  const [patientAge, setPatientAge] = useState("");
+  const [prescriptionDetails, setPrescriptionDetails] = useState("");
+
   const handleSign = async () => {
-    if (!pdfFile || !keyFile || !passphrase) {
+    // Validasi input baru
+    if (
+      !pdfFile ||
+      !keyFile ||
+      !passphrase ||
+      !patientName ||
+      !patientAge ||
+      !prescriptionDetails
+    ) {
       showToast(
         "error",
-        "Dokumen PDF, Kunci Privat, dan Passphrase wajib diisi.",
+        "Semua form wajib diisi (File PDF, Detail Resep, Kunci Privat, dan Passphrase).",
       );
       return;
     }
@@ -367,44 +380,50 @@ function SignPdfTab({ doctor }) {
       const pdfBuffer = await pdfFile.arrayBuffer();
       const keyText = await keyFile.text();
 
-      const { signature, docHash } = await signDocument(
-        pdfBuffer,
+      // 1. Buat Objek Payload Resep
+      const payloadObj = {
+        pasien: patientName,
+        usia: patientAge,
+        resep: prescriptionDetails,
+        dokter: doctor.name,
+        sip: doctor.sip,
+        tanggal: new Date().toISOString().split("T")[0],
+      };
+      const payloadString = JSON.stringify(payloadObj);
+
+      // 2. Tandatangani String Payload
+      const { signature, payloadHash } = await signPayload(
+        payloadString,
         keyText,
         passphrase,
       );
 
-      // 3. TAMBAHKAN SIP KE DALAM METADATA QR
-      // Ini sangat penting agar Apoteker bisa mencari Public Key di localStorage berdasarkan SIP ini
+      // 3. Masukkan Payload ke dalam Metadata QR Code
       const metadata = {
         issuer: doctor.name,
         sip: doctor.sip,
-        date: new Date().toISOString().split("T")[0],
-        hash: docHash,
+        date: payloadObj.tanggal,
+        hash: payloadHash,
         sig: signature,
+        payload: payloadObj, // Data asli disisipkan ke QR untuk dibaca Apoteker
       };
 
-      // Tempel QR Code
-      let base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
+      // Tempel QR Code ke dokumen PDF via Server Action (Mengembalikan base64 string)
+      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
 
-      // SUNTIKKAN NAMA DOKTER KE METADATA (AUTHOR) PDF
-      const { PDFDocument } = await import("pdf-lib");
-      const pdfDocObj = await PDFDocument.load(
-        Buffer.from(base64Pdf, "base64"),
-      );
-      pdfDocObj.setAuthor(doctor.name);
-      const finalPdfBytes = await pdfDocObj.save();
-      base64Pdf = Buffer.from(finalPdfBytes).toString("base64");
-
-      const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
-        type: "application/pdf",
-      });
+      // Konversi Base64 string ke Blob untuk unduhan browser (Menghindari penggunaan Buffer di sisi client)
+      const pdfBlob = base64ToBlob(base64Pdf, "application/pdf");
 
       triggerDownload(pdfBlob, `signed_${pdfFile.name}`, "application/pdf");
       showToast("success", "Dokumen berhasil ditandatangani dan diunduh.");
 
+      // Reset form
       setPdfFile(null);
       setKeyFile(null);
       setPassphrase("");
+      setPatientName("");
+      setPatientAge("");
+      setPrescriptionDetails("");
     } catch (error) {
       showToast(
         "error",
@@ -423,23 +442,23 @@ function SignPdfTab({ doctor }) {
         </div>
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
-            Tanda Tangani Resep PDF
+            Tanda Tangani Resep
           </h2>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-            Lampirkan tanda tangan digital dan QR Code verifikasi pada dokumen
-            Resep Anda.
+            Lengkapi rincian resep untuk dikunci (di-hash) ke dalam QR Code.
           </p>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
         <div className="lg:col-span-7 space-y-4 sm:space-y-6">
+          {/* STEP 1 */}
           <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 1
               </span>
-              Unggah Dokumen Resep (PDF)
+              Unggah Latar Dokumen (PDF Kosong/Template)
             </label>
             <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
               <FileDropzone
@@ -450,10 +469,41 @@ function SignPdfTab({ doctor }) {
             </div>
           </div>
 
+          {/* STEP 2 - FORM BARU UNTUK INPUT DATA PAYLOAD */}
           <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 2
+              </span>
+              Detail Isi Resep (Dikunci dalam QR)
+            </label>
+            <div className="space-y-3">
+              <Input
+                placeholder="Nama Pasien"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                className="text-sm border-slate-200 bg-slate-50 focus:bg-white"
+              />
+              <Input
+                placeholder="Usia Pasien (Misal: 25 Tahun)"
+                value={patientAge}
+                onChange={(e) => setPatientAge(e.target.value)}
+                className="text-sm border-slate-200 bg-slate-50 focus:bg-white"
+              />
+              <textarea
+                placeholder="Rincian Obat (Nama Obat, Dosis, Aturan Pakai)..."
+                value={prescriptionDetails}
+                onChange={(e) => setPrescriptionDetails(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm focus:border-teal-500 focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none transition-all min-h-[90px] resize-y"
+              />
+            </div>
+          </div>
+
+          {/* STEP 3 */}
+          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
+            <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
+              <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
+                3
               </span>
               Unggah Kunci Privat (.pem)
             </label>
@@ -467,11 +517,12 @@ function SignPdfTab({ doctor }) {
           </div>
         </div>
 
+        {/* RIGHT SIDEBAR */}
         <div className="lg:col-span-5">
           <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6">
             <h3 className="font-semibold text-base sm:text-lg mb-4 sm:mb-6 flex items-center gap-2.5 border-b border-white/10 pb-4">
               <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 flex-shrink-0" />
-              <span>Konfigurasi Keamanan</span>
+              <span>Otorisasi Penandatanganan</span>
             </h3>
 
             <div className="space-y-4 sm:space-y-6">
@@ -511,15 +562,9 @@ function SignPdfTab({ doctor }) {
                     value={qrPos}
                     onChange={(e) => setQrPos(e.target.value)}
                   >
-                    <option value="bottom-left">
-                      Pojok Kiri Bawah (Halaman Terakhir)
-                    </option>
-                    <option value="bottom-right">
-                      Pojok Kanan Bawah (Halaman Terakhir)
-                    </option>
-                    <option value="new-page">
-                      Halaman Baru (Khusus Lampiran QR)
-                    </option>
+                    <option value="bottom-left">Pojok Kiri Bawah</option>
+                    <option value="bottom-right">Pojok Kanan Bawah</option>
+                    <option value="new-page">Halaman Baru Terpisah</option>
                   </select>
                   <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
                     <svg
@@ -546,12 +591,12 @@ function SignPdfTab({ doctor }) {
                   variant="primary"
                   className="w-full py-3.5 text-xs sm:text-sm font-bold shadow-teal-900/20"
                 >
-                  {isLoading ? "Memproses..." : "Proses & Tanda Tangani"}
+                  {isLoading ? "Memproses..." : "Kunci & Terbitkan Dokumen"}
                 </Button>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-3.5 sm:mt-5 leading-relaxed">
-                  Dokumen ditandatangani dengan aman di perangkat Anda.
-                  <br className="hidden sm:inline" /> File resep tidak pernah
-                  disimpan di server kami.
+                  Data pasien dan rincian obat akan dikunci mati{" "}
+                  <br className="hidden sm:inline" />
+                  ke dalam QR Code menggunakan ECDSA P-256.
                 </p>
               </div>
             </div>
