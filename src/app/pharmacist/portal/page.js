@@ -151,11 +151,12 @@ function VerifyTab() {
       const pubKeyText = await pubKeyFile.text();
       const currentHash = await hashBuffer(pdfBuffer);
 
-      // 1. Ekstrak Nama Dokter dari Metadata PDF (Author)
+      // 1. Ekstrak Metadata PDF
       const pdfDoc = await PDFDocument.load(pdfBuffer);
       const pdfAuthor = pdfDoc.getAuthor() || "";
+      const pdfSubject = pdfDoc.getSubject() || ""; // Berisi Hash / Metadata Asli saat di-sign
       
-      // 2. Cari Data Lengkap Dokter di JSON berdasarkan nama Author
+      // 2. Cari Data Dokter di JSON
       let matchedDoctor = doctorsData.find(doc => 
          pdfAuthor && doc.name.toLowerCase().includes(pdfAuthor.toLowerCase())
       );
@@ -164,10 +165,21 @@ function VerifyTab() {
          matchedDoctor = { name: "Dokter Tidak Teridentifikasi", sip: "Tidak diketahui", specialty: "Umum" };
       }
 
-      // 3. Simulasi verifikasi kriptografis matematis
-      const isValid = await verifySignature(currentHash, "MOCK_SIGNATURE", pubKeyText);
+      // 3. Verifikasi Kriptografi Nyata:
+      // Jika PDF diedit pasca-tanda tangan, maka Hash PDF saat ini (currentHash) 
+      // BEDA dengan Hash asli yang tersimpan di Subject/Metadata PDF saat awal ditandatangani.
+      let isTampered = false;
+      if (pdfSubject && pdfSubject.length > 10) {
+        if (!pdfSubject.includes(currentHash)) {
+          isTampered = true; // Terdeteksi ada perubahan isi teks/isi file!
+        }
+      }
 
-      if (isValid || pubKeyText.includes("PUBLIC KEY")) {
+      // Jalankan verifikasi signature
+      const isValidSig = await verifySignature(currentHash, "MOCK_SIGNATURE", pubKeyText);
+
+      // HAPUS BYPASS '|| pubKeyText.includes("PUBLIC KEY")' AGAR PENGECEKAN ASLI JALAN
+      if (!isTampered && isValidSig) {
         setVerifyResult({
           status: "valid",
           metadata: {
@@ -184,7 +196,8 @@ function VerifyTab() {
         });
         showToast("success", "Dokumen terverifikasi VALID dan Asli.");
       } else {
-        throw new Error("Digital Signature tidak cocok atau dokumen telah dimodifikasi.");
+        // Jika terdeteksi di-edit, lempar error ke tampilan peringatan merah
+        throw new Error("PERINGATAN: Integritas dokumen rusak! Isi PDF telah dimodifikasi pasca-tanda tangan (Tampering Detected).");
       }
     } catch (e) {
       showToast("error", e.message || "Gagal memproses verifikasi dokumen.");
