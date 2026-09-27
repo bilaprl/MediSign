@@ -1,3 +1,4 @@
+// src/app/doctor/dashboard/page.js
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -26,7 +27,8 @@ import {
 
 // Helper untuk memicu unduhan berkas di browser
 const triggerDownload = (content, filename, type = "text/plain") => {
-  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const blob =
+    content instanceof Blob ? content : new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -39,19 +41,35 @@ const triggerDownload = (content, filename, type = "text/plain") => {
 
 export default function DoctorDashboard() {
   const [activeTab, setActiveTab] = useState("keygen");
-  const [doctorName, setDoctorName] = useState("");
+  const [doctor, setDoctor] = useState({ name: "", sip: "", id: "" });
+  const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
 
+  // 1. MEMBACA SESI LOGIN
   useEffect(() => {
-    setDoctorName(
-      sessionStorage.getItem("currentDoctor") || "dr. Ahmad Fauzi, Sp.JP"
-    );
-  }, []);
+    const authData = sessionStorage.getItem("doctorAuth");
+    if (authData) {
+      setDoctor(JSON.parse(authData));
+      setIsInitializing(false);
+    } else {
+      // Jika tidak login, kembalikan ke halaman login
+      router.push("/doctor/login");
+    }
+  }, [router]);
 
   const handleLogout = () => {
-    sessionStorage.removeItem("currentDoctor");
+    sessionStorage.removeItem("doctorAuth");
     router.push("/doctor/login");
   };
+
+  // Tampilkan layar loading singkat sebelum data sesi terbaca
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium font-['Montserrat']">
+        Memuat ruang kerja...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -77,13 +95,10 @@ export default function DoctorDashboard() {
             </div>
 
             <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight truncate">
-              {doctorName}
+              {doctor.name}
             </h1>
             <p className="text-slate-600 text-xs sm:text-sm font-medium">
-              Spesialis Jantung & Pembuluh Darah
-            </p>
-            <p className="text-slate-500 text-[11px] sm:text-xs hidden sm:block">
-              Pusat Penerbitan & Penandatanganan Resep Digital Kriptografis
+              SIP: {doctor.sip}
             </p>
           </div>
         </div>
@@ -134,17 +149,17 @@ export default function DoctorDashboard() {
       {/* 3. Main Content Area */}
       <div className="transition-all duration-300 ease-in-out">
         {activeTab === "keygen" ? (
-          <KeyGenTab />
+          <KeyGenTab doctor={doctor} />
         ) : (
-          <SignPdfTab doctorName={doctorName} />
+          <SignPdfTab doctor={doctor} />
         )}
       </div>
     </div>
   );
 }
 
-function KeyGenTab() {
-  const [form, setForm] = useState({ name: "", sip: "", passphrase: "" });
+function KeyGenTab({ doctor }) {
+  const [passphrase, setPassphrase] = useState("");
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [keys, setKeys] = useState(null);
@@ -152,16 +167,25 @@ function KeyGenTab() {
 
   const handleGenerateKeys = async (e) => {
     e.preventDefault();
-    if (!form.passphrase || form.passphrase.length < 6) {
+    if (!passphrase || passphrase.length < 6) {
       showToast("warning", "Passphrase minimal 6 karakter.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const generated = await generateKeys({ passphrase: form.passphrase });
+      // Generate kunci via Server Action (Aman, ECDSA P-256)
+      const generated = await generateKeys({ passphrase });
       setKeys(generated);
-      showToast("success", "Pasangan kunci ECDSA P-256 berhasil dibuat!");
+
+      // 2. SIMPAN PUBLIC KEY DI LOCAL STORAGE (Pengganti Database)
+      // Disimpan berdasarkan SIP agar apoteker bisa mencari kunci spesifik milik dokter ini
+      localStorage.setItem(`publicKey_${doctor.sip}`, generated.publicKey);
+
+      showToast(
+        "success",
+        "Pasangan kunci ECDSA P-256 berhasil dibuat & Public Key aktif!",
+      );
     } catch (error) {
       showToast("error", error.message || "Gagal membuat pasangan kunci.");
     } finally {
@@ -171,7 +195,8 @@ function KeyGenTab() {
 
   const handleDownload = (type) => {
     if (!keys) return;
-    const content = type === "public" ? keys.public : keys.private;
+    // Sesuaikan dengan properties dari cryptoUtils.js { publicKey, privateKey }
+    const content = type === "public" ? keys.publicKey : keys.privateKey;
     const filename = type === "public" ? "public_key.pem" : "private_key.pem";
     triggerDownload(content, filename);
   };
@@ -187,32 +212,35 @@ function KeyGenTab() {
             </h2>
             <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
               Buat pasangan kunci Kriptografi (<i>Public & Private Key</i>)
-              berbasis standar ECDSA P-256.
+              berbasis standar ECDSA P-256. Identitas terikat pada sesi aktif
+              Anda.
             </p>
           </div>
 
-          <form onSubmit={handleGenerateKeys} className="space-y-4 sm:space-y-5">
+          <form
+            onSubmit={handleGenerateKeys}
+            className="space-y-4 sm:space-y-5"
+          >
+            {/* Form Read-Only dari Sesi Login */}
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-xs sm:text-sm font-semibold text-slate-700">
-                Nama Lengkap & Gelar
+                Nama Lengkap & Gelar (Otomatis)
               </label>
               <Input
-                className="bg-slate-50 border-slate-200 rounded-xl text-sm"
-                placeholder="dr. Budi Santoso, Sp.PD"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
+                value={doctor.name}
+                readOnly
               />
             </div>
 
             <div className="space-y-1.5 sm:space-y-2">
               <label className="text-xs sm:text-sm font-semibold text-slate-700">
-                Nomor SIP
+                Nomor SIP (Otomatis)
               </label>
               <Input
-                className="bg-slate-50 border-slate-200 rounded-xl text-sm"
-                placeholder="123/SIP/2026"
-                value={form.sip}
-                onChange={(e) => setForm({ ...form, sip: e.target.value })}
+                className="bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
+                value={doctor.sip}
+                readOnly
               />
             </div>
 
@@ -223,12 +251,10 @@ function KeyGenTab() {
               <div className="relative">
                 <Input
                   type={showPassphrase ? "text" : "password"}
-                  className="bg-slate-50 border-slate-200 rounded-xl pr-12 text-sm"
+                  className="bg-slate-50 border-slate-200 rounded-xl pr-12 text-sm focus:ring-primary-500/10 focus:border-primary-500"
                   placeholder="Minimal 6 karakter"
-                  value={form.passphrase}
-                  onChange={(e) =>
-                    setForm({ ...form, passphrase: e.target.value })
-                  }
+                  value={passphrase}
+                  onChange={(e) => setPassphrase(e.target.value)}
                 />
                 <button
                   type="button"
@@ -266,7 +292,8 @@ function KeyGenTab() {
                     Berhasil Dibuat!
                   </h4>
                   <p className="text-xs sm:text-sm text-emerald-700 leading-relaxed">
-                    Kunci Anda siap. Simpan <b>Private Key</b> di tempat aman.
+                    Kunci Anda siap. <b>Public Key</b> telah diaktifkan ke
+                    sistem. Simpan <b>Private Key</b> Anda di tempat aman.
                   </p>
                 </div>
               </div>
@@ -284,7 +311,8 @@ function KeyGenTab() {
                   onClick={() => handleDownload("private")}
                   className="w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm"
                 >
-                  <Download className="w-4 h-4 text-teal-500" /> Unduh Private Key (.pem)
+                  <Download className="w-4 h-4 text-teal-500" /> Unduh Private
+                  Key (.pem)
                 </Button>
               </div>
 
@@ -306,7 +334,7 @@ function KeyGenTab() {
               </h3>
               <p className="text-xs sm:text-sm leading-relaxed text-slate-500">
                 Silakan isi formulir untuk <i>generate public & private key</i>{" "}
-                secara lokal.
+                berdasarkan identitas Anda.
               </p>
             </div>
           )}
@@ -316,7 +344,7 @@ function KeyGenTab() {
   );
 }
 
-function SignPdfTab({ doctorName }) {
+function SignPdfTab({ doctor }) {
   const [pdfFile, setPdfFile] = useState(null);
   const [keyFile, setKeyFile] = useState(null);
   const [passphrase, setPassphrase] = useState("");
@@ -329,7 +357,7 @@ function SignPdfTab({ doctorName }) {
     if (!pdfFile || !keyFile || !passphrase) {
       showToast(
         "error",
-        "Dokumen PDF, Kunci Privat, dan Passphrase wajib diisi."
+        "Dokumen PDF, Kunci Privat, dan Passphrase wajib diisi.",
       );
       return;
     }
@@ -342,26 +370,30 @@ function SignPdfTab({ doctorName }) {
       const { signature, docHash } = await signDocument(
         pdfBuffer,
         keyText,
-        passphrase
+        passphrase,
       );
 
+      // 3. TAMBAHKAN SIP KE DALAM METADATA QR
+      // Ini sangat penting agar Apoteker bisa mencari Public Key di localStorage berdasarkan SIP ini
       const metadata = {
-        issuer: doctorName, // <--- Ini menyimpan nama dokter yang sedang login
+        issuer: doctor.name,
+        sip: doctor.sip,
         date: new Date().toISOString().split("T")[0],
         hash: docHash,
         sig: signature,
       };
 
-      // 1. Tempel QR Code
+      // Tempel QR Code
       let base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
-      
-      // 2. SUNTIKKAN NAMA DOKTER KE METADATA (AUTHOR) PDF
-      const { PDFDocument } = await import('pdf-lib');
-      const pdfDocObj = await PDFDocument.load(Buffer.from(base64Pdf, "base64"));
-      pdfDocObj.setAuthor(doctorName); // SUNTIKKAN NAMA DOKTER DI SINI!
+
+      // SUNTIKKAN NAMA DOKTER KE METADATA (AUTHOR) PDF
+      const { PDFDocument } = await import("pdf-lib");
+      const pdfDocObj = await PDFDocument.load(
+        Buffer.from(base64Pdf, "base64"),
+      );
+      pdfDocObj.setAuthor(doctor.name);
       const finalPdfBytes = await pdfDocObj.save();
       base64Pdf = Buffer.from(finalPdfBytes).toString("base64");
-      // Akhir Penyuntikan Metadata
 
       const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
         type: "application/pdf",
@@ -376,7 +408,7 @@ function SignPdfTab({ doctorName }) {
     } catch (error) {
       showToast(
         "error",
-        error.message || "Gagal memproses tanda tangan digital."
+        error.message || "Gagal memproses tanda tangan digital.",
       );
     } finally {
       setIsLoading(false);
@@ -517,9 +549,9 @@ function SignPdfTab({ doctorName }) {
                   {isLoading ? "Memproses..." : "Proses & Tanda Tangani"}
                 </Button>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-3.5 sm:mt-5 leading-relaxed">
-                  Dokumen ditandatangani secara lokal di peramban Anda.
-                  <br className="hidden sm:inline" /> File tidak diunggah ke
-                  server.
+                  Dokumen ditandatangani dengan aman di perangkat Anda.
+                  <br className="hidden sm:inline" /> File resep tidak pernah
+                  disimpan di server kami.
                 </p>
               </div>
             </div>

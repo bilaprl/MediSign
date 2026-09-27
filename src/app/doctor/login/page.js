@@ -19,30 +19,43 @@ import {
 } from "lucide-react";
 
 export default function DoctorLogin() {
-  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { showToast } = useToast();
 
+  // Mengambil PIN dari .env.local (Default: 1234 jika env belum diset)
+  const VALID_PIN = process.env.NEXT_PUBLIC_DOCTOR_PIN || "1234";
+
   const handleLogin = (e) => {
     e.preventDefault();
-    if (!selectedDoctor || !pin) {
-      showToast("error", "Pilih nama dokter dan masukkan PIN (1234)");
+    if (!selectedDoctorId || !pin) {
+      showToast("error", "Pilih identitas dokter dan masukkan PIN");
       return;
     }
 
     setIsLoading(true);
-    // Dummy Auth Delay
+
+    // Simulasi proses autentikasi
     setTimeout(() => {
-      if (pin === "1234") {
-        showToast("success", `Selamat datang, ${selectedDoctor}`);
-        // In real app, we'd set a token/session here
-        sessionStorage.setItem("currentDoctor", selectedDoctor);
-        router.push("/doctor/dashboard");
+      if (pin === VALID_PIN) {
+        const doctorData = doctors.find((doc) => doc.id === selectedDoctorId);
+
+        if (doctorData) {
+          showToast("success", `Selamat datang, ${doctorData.name}`);
+
+          // Simpan kredensial ke session storage untuk proses KeyGen & Resep
+          sessionStorage.setItem("doctorAuth", JSON.stringify(doctorData));
+
+          router.push("/doctor/dashboard");
+        } else {
+          showToast("error", "Data dokter tidak ditemukan.");
+          setIsLoading(false);
+        }
       } else {
-        showToast("error", "PIN salah. Gunakan 1234 untuk simulasi.");
+        showToast("error", "PIN Akses salah. Silakan periksa kembali.");
         setIsLoading(false);
       }
     }, 1000);
@@ -61,15 +74,14 @@ export default function DoctorLogin() {
       </div>
 
       <div className="w-full max-w-5xl bg-white rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] shadow-xl sm:shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100 relative z-10">
-        {/* Left Side: Image & Branding (Hidden on Mobile) */}
+        {/* Left Side: Image & Branding */}
         <div className="relative w-full md:w-5/12 hidden md:flex flex-col justify-between bg-slate-900 p-8 lg:p-10 min-h-[500px]">
           <img
-            src="https://plus.unsplash.com/premium_photo-1673953510107-d5aee40d80a7?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+            src="https://plus.unsplash.com/premium_photo-1673953510107-d5aee40d80a7?q=80&w=774&auto=format&fit=crop"
             alt="Doctor Workspace"
             className="absolute inset-0 w-full h-full object-cover opacity-50"
             loading="lazy"
           />
-          {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-slate-900/20"></div>
 
           <div className="relative z-10">
@@ -97,7 +109,6 @@ export default function DoctorLogin() {
 
         {/* Right Side: Form */}
         <div className="w-full md:w-7/12 p-5 sm:p-8 md:p-10 lg:p-16 flex flex-col justify-center relative bg-white">
-          {/* Mobile Back Button */}
           <div className="md:hidden mb-6">
             <Link
               href="/"
@@ -112,8 +123,8 @@ export default function DoctorLogin() {
               Autentikasi Dokter
             </h1>
             <p className="text-slate-500 text-xs sm:text-sm md:text-base leading-relaxed">
-              Silakan pilih identitas dokter simulasi dan masukkan PIN untuk
-              mengakses <i>dashboard</i>.
+              Silakan pilih identitas dokter dan masukkan PIN keamanan untuk
+              mengakses ruang kerja klinis Anda.
             </p>
           </div>
 
@@ -131,19 +142,18 @@ export default function DoctorLogin() {
                 <select
                   id="doctorId"
                   className="w-full appearance-none rounded-xl border border-slate-300 px-3.5 sm:px-4 py-3 sm:py-3.5 text-slate-700 text-sm sm:text-base focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 bg-slate-50 hover:bg-white transition-colors cursor-pointer pr-10"
-                  value={selectedDoctor}
-                  onChange={(e) => setSelectedDoctor(e.target.value)}
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
                 >
                   <option value="" disabled>
-                    -- Pilih Dokter Mock --
+                    -- Pilih Identitas Dokter --
                   </option>
                   {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.name}>
+                    <option key={doc.id} value={doc.id}>
                       {doc.name} (SIP: {doc.sip})
                     </option>
                   ))}
                 </select>
-                {/* Custom Dropdown Arrow */}
                 <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
                   <svg
                     className="w-4 h-4 sm:w-5 sm:h-5"
@@ -164,17 +174,12 @@ export default function DoctorLogin() {
 
             {/* Input PIN */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="pinInput"
-                  className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
-                >
-                  <Lock className="w-4 h-4 text-primary-600" /> PIN Akses
-                </label>
-                <span className="text-[10px] sm:text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 sm:py-1 rounded-md">
-                  Gunakan: 1234
-                </span>
-              </div>
+              <label
+                htmlFor="pinInput"
+                className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
+              >
+                <Lock className="w-4 h-4 text-primary-600" /> PIN Akses
+              </label>
               <div className="relative">
                 <Input
                   id="pinInput"
