@@ -13,9 +13,30 @@ export default function QrScanner({ onScanResult }) {
   const scannerRef = useRef(null);
   const { showToast } = useToast();
 
-  const handleProcessData = (rawText) => {
+  const calculateSHA256 = async (text) => {
+    const msgBuffer = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const handleProcessData = async (rawText) => {
     try {
       const dataObj = JSON.parse(rawText);
+
+      if (!dataObj.payload || !dataObj.hash || !dataObj.sig) {
+        showToast("error", "INVALID: QR Code tidak memiliki Tanda Tangan Digital yang sah!");
+        return; // Hentikan proses, jangan tampilkan data
+      }
+
+      const payloadString = JSON.stringify(dataObj.payload);
+      const recalculatedHash = await calculateSHA256(payloadString);
+
+      if (recalculatedHash !== dataObj.hash) {
+        showToast("error", "PERINGATAN: Data rincian resep telah dimanipulasi (Hash Mismatch)!");
+        return; 
+      }
+
       const issuerName =
         dataObj.issuer || dataObj.payload?.dokter || "Dokter Penanggung Jawab";
 
@@ -38,8 +59,7 @@ export default function QrScanner({ onScanResult }) {
         payload: dataObj.payload || null,
       };
 
-      showToast("success", "QR Code Resep Berhasil Terbaca & Terdekode!");
-      // Langsung kirim data ke page.js untuk ditampilkan di kolom kanan
+      showToast("success", "QR Code Resep Berhasil Terbaca & Terverifikasi!");
       if (onScanResult) onScanResult(parsedResult);
       
     } catch (e) {
