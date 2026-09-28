@@ -549,6 +549,7 @@ function CountersignTab() {
   const [pdfFile, setPdfFile] = useState(null);
   const [keyFile, setKeyFile] = useState(null);
   const [passphrase, setPassphrase] = useState("");
+  const [qrPos, setQrPos] = useState("bottom-left"); // State posisi QR apoteker
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -637,10 +638,12 @@ function CountersignTab() {
         status: "COUNTERSIGNED",
       };
 
-      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, "bottom-left");
+      // Menempelkan QR Code sesuai posisi yang dipilih oleh Apoteker
+      const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
 
-      // Mengubah Base64 dari Server Action ke Blob secara aman tanpa 'Buffer'
-      const pdfBlob = base64ToBlob(base64Pdf, "application/pdf");
+      const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
+        type: "application/pdf",
+      });
 
       triggerDownload(
         pdfBlob,
@@ -667,34 +670,32 @@ function CountersignTab() {
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6">
       {/* 1. KOTAK GENERATOR KUNCI APOTEKER */}
-      <Card className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-100 bg-white shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          <div className="space-y-1">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-emerald-600" /> Pembangkit Kunci
-              Asimetris (Key Generation)
+      <Card className="p-5 sm:p-6 rounded-2xl border border-blue-100 bg-blue-50/50">
+        <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-blue-600" />
+              Pembangkit Kunci Asimetris (Key Generation)
             </h3>
-            <p className="text-slate-500 text-xs sm:text-sm">
+            <p className="text-xs text-slate-600 mt-1 max-w-md">
               Buat pasangan Kunci Publik dan Kunci Privat berstandar ECDSA
               (P-256) khusus untuk identitas Apoteker Anda.
             </p>
           </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 min-w-[280px]">
+          <div className="flex w-full md:w-auto gap-2">
             <Input
               type="password"
-              placeholder="Passphrase Pelindung"
+              placeholder="Sandi pelindung kunci..."
               value={genPassphrase}
               onChange={(e) => setGenPassphrase(e.target.value)}
               className="bg-white text-sm"
             />
             <Button
               onClick={handleGenerateKeys}
-              isLoading={isGenerating}
-              variant="primary"
-              className="whitespace-nowrap px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl"
+              disabled={isGenerating || !genPassphrase}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
             >
               {isGenerating ? "Memproses..." : "Buat Pasang Kunci"}
             </Button>
@@ -703,92 +704,115 @@ function CountersignTab() {
       </Card>
 
       {/* 2. KOTAK UTAMA PENGESAHAN (COUNTERSIGN) */}
-      <Card className="p-5 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl border border-slate-100 bg-white shadow-sm">
-        <div className="mb-6 sm:mb-8 flex items-center gap-3.5 sm:gap-4">
-          <div className="bg-emerald-600 text-white p-3 rounded-xl shadow-sm flex-shrink-0">
-            <BadgeCheck className="w-5 h-5 sm:w-7 sm:h-7" />
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
-              Pengesahan Apoteker (Countersign)
-            </h2>
-            <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-              Bubuhkan tanda tangan digital sekunder (menggunakan Kunci Privat
-              Apoteker) sebagai bukti sah obat telah diserahkan.
-            </p>
-          </div>
+      <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white">
+        <div className="mb-6 sm:mb-8 border-b border-slate-100 pb-4 sm:pb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+            Pengesahan Apoteker (Countersign)
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            Bubuhkan tanda tangan digital sekunder (menggunakan Kunci Privat
+            Apoteker) sebagai bukti sah obat telah diserahkan.
+          </p>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
-          <div className="lg:col-span-7 space-y-4 sm:space-y-6">
-            <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
-              <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
-                <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
+        <div className="grid lg:grid-cols-12 gap-6 sm:gap-8">
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6">
+            <div>
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 mb-2 sm:mb-3">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] sm:text-xs">
                   1
                 </span>
                 Unggah PDF Resep (Dari Dokter)
               </label>
-              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
-                <FileDropzone
-                  accept=".pdf"
-                  onFileSelect={setPdfFile}
-                  selectedFile={pdfFile}
-                />
-              </div>
+              <FileDropzone
+                onFileSelect={setPdfFile}
+                accept=".pdf"
+                selectedFile={pdfFile}
+                placeholder="Klik untuk mengunggah atau seret file PDF ke sini"
+              />
             </div>
-
-            <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
-              <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
-                <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
+            <div>
+              <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 mb-2 sm:mb-3">
+                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] sm:text-xs">
                   2
                 </span>
                 Unggah Kunci Privat Apoteker (.pem)
               </label>
-              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
-                <FileDropzone
-                  accept=".pem"
-                  onFileSelect={setKeyFile}
-                  selectedFile={keyFile}
-                />
-              </div>
+              <FileDropzone
+                onFileSelect={setKeyFile}
+                accept=".pem"
+                selectedFile={keyFile}
+                placeholder="Unggah private_key_apoteker.pem"
+              />
             </div>
           </div>
 
           <div className="lg:col-span-5">
-            <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6">
-              <h3 className="font-semibold text-base sm:text-lg mb-4 sm:mb-6 flex items-center gap-2.5 border-b border-white/10 pb-4">
-                <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 flex-shrink-0" />
-                <span>Otorisasi Pengesahan</span>
-              </h3>
-
-              <div className="space-y-4 sm:space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium text-slate-300">
+            <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-8 shadow-xl sticky top-8 text-white">
+              <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  Otorisasi Pengesahan
+                </h3>
+              </div>
+              <div className="space-y-5 sm:space-y-6">
+                <div>
+                  <label className="block text-[11px] sm:text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
                     Passphrase Kunci Privat Apoteker
                   </label>
                   <Input
                     type="password"
+                    placeholder="Masukkan sandi pelindung kunci..."
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="Masukkan sandi pelindung"
                     className="w-full bg-white text-slate-900 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
                   />
                 </div>
 
-                <div className="pt-2">
-                  <Button
-                    onClick={handleCountersign}
-                    isLoading={isLoading}
-                    variant="primary"
-                    className="w-full py-3.5 text-xs sm:text-sm font-bold shadow-emerald-900/20 bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    {isLoading ? "Memproses..." : "Beri Stempel Pengesahan"}
-                  </Button>
-                  <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-3.5 sm:mt-5 leading-relaxed">
-                    Dokumen akan ditambahkan Digital Signature lapis kedua milik
-                    Anda (Countersign).
-                  </p>
+                {/* PILIHAN POSISI QR CODE UNTUK APOTEKER */}
+                <div>
+                  <label className="block text-[11px] sm:text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
+                    Posisi QR Code Tanda Tangan
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="w-full appearance-none rounded-xl border border-white/10 px-3.5 sm:px-4 py-3 text-xs sm:text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-[#12234A] text-white cursor-pointer outline-none transition-all pr-10"
+                      value={qrPos}
+                      onChange={(e) => setQrPos(e.target.value)}
+                    >
+                      <option value="bottom-left">Pojok Kiri Bawah</option>
+                      <option value="bottom-right">Pojok Kanan Bawah</option>
+                      <option value="new-page">Halaman Baru Terpisah</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
+
+                <Button
+                  onClick={handleCountersign}
+                  disabled={isLoading}
+                  className="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-900 font-bold text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                >
+                  {isLoading ? "Memproses..." : "Beri Stempel Pengesahan"}
+                </Button>
+                <p className="text-center text-[10px] sm:text-xs text-slate-400 font-medium leading-relaxed">
+                  Dokumen akan ditambahkan Digital Signature lapis kedua milik
+                  Anda (Countersign).
+                </p>
               </div>
             </div>
           </div>
