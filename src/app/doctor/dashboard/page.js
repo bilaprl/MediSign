@@ -25,7 +25,7 @@ import {
   Lock,
 } from "lucide-react";
 
-// Helper untuk memicu unduhan berkas di browser
+// Helper Unduhan
 const triggerDownload = (content, filename, type = "text/plain") => {
   const blob =
     content instanceof Blob ? content : new Blob([content], { type });
@@ -39,7 +39,7 @@ const triggerDownload = (content, filename, type = "text/plain") => {
   URL.revokeObjectURL(url);
 };
 
-// Helper untuk mengubah base64 menjadi Blob di sisi Client tanpa modul Node.js "Buffer"
+// Helper Base64 ke Blob
 const base64ToBlob = (base64, type = "application/pdf") => {
   const byteCharacters = atob(base64);
   const byteArray = new Uint8Array(byteCharacters.length);
@@ -80,17 +80,17 @@ export default function DoctorDashboard() {
 
   return (
     <div
-      className="max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-10 min-h-screen text-slate-800"
+      className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-10 min-h-screen text-slate-800 w-full"
       style={{ fontFamily: "'Montserrat', sans-serif" }}
     >
-      {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 relative z-10 bg-white sm:bg-transparent p-4 sm:p-0 rounded-2xl border border-slate-100 sm:border-none shadow-sm sm:shadow-none">
-        <div className="flex items-start sm:items-center gap-3.5 sm:gap-5">
-          <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 sm:border-[3px] border-white shadow-md bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
-            <User className="w-7 h-7 sm:w-10 sm:h-10" />
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6 relative z-10 bg-white sm:bg-transparent p-5 sm:p-0 rounded-2xl border border-slate-100 sm:border-none shadow-sm sm:shadow-none w-full">
+        <div className="flex items-start sm:items-center gap-4 sm:gap-5 w-full md:w-auto">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 sm:border-[3px] border-white shadow-md bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
+            <User className="w-8 h-8 sm:w-10 sm:h-10" />
           </div>
 
-          <div className="space-y-1 min-w-0">
+          <div className="space-y-1.5 min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 text-[10px] sm:text-[11px]">
               <span className="font-bold text-slate-500 uppercase tracking-wider">
                 Dokter Penanggung Jawab
@@ -100,7 +100,7 @@ export default function DoctorDashboard() {
                 Sesi Aktif
               </span>
             </div>
-            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight truncate">
+            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight truncate w-full">
               {doctor.name}
             </h1>
             <p className="text-slate-600 text-xs sm:text-sm font-medium">
@@ -109,8 +109,8 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t border-slate-100 sm:border-t-0">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-full border border-amber-200 text-slate-700 text-xs font-semibold">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between sm:justify-end gap-3 pt-4 sm:pt-0 border-t border-slate-100 sm:border-t-0 w-full md:w-auto">
+          <div className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-amber-50 rounded-full border border-amber-200 text-slate-700 text-xs font-semibold">
             <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 flex-shrink-0" />
             <span className="whitespace-nowrap">ECDSA P-256 Enkripsi</span>
           </div>
@@ -118,20 +118,20 @@ export default function DoctorDashboard() {
           <Button
             onClick={handleLogout}
             variant="secondary"
-            className="flex items-center gap-1.5 py-2 px-3.5 sm:px-5 text-xs sm:text-sm"
+            className="flex items-center justify-center gap-1.5 py-2.5 sm:py-2 px-4 sm:px-5 text-xs sm:text-sm w-full sm:w-auto"
           >
-            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <LogOut className="w-4 h-4 sm:w-4 sm:h-4" />
             <span>Keluar</span>
           </Button>
         </div>
       </div>
 
-      {/* 2. Navigation Tabs */}
-      <div className="border-b border-slate-200 -mx-3 px-3 sm:mx-0 sm:px-0">
-        <div className="flex space-x-4 sm:space-x-8 overflow-x-auto no-scrollbar">
+      {/* Navigation Tabs */}
+      <div className="border-b border-slate-200 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex space-x-6 sm:space-x-8 overflow-x-auto no-scrollbar w-full">
           <button
             onClick={() => setActiveTab("keygen")}
-            className={`flex items-center gap-2 pb-3 sm:pb-4 text-xs sm:text-sm font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${
+            className={`flex items-center gap-2 pb-3 sm:pb-4 text-sm font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${
               activeTab === "keygen"
                 ? "border-slate-900 text-slate-900"
                 : "border-transparent text-slate-500 hover:text-slate-800"
@@ -141,7 +141,7 @@ export default function DoctorDashboard() {
           </button>
           <button
             onClick={() => setActiveTab("sign")}
-            className={`flex items-center gap-2 pb-3 sm:pb-4 text-xs sm:text-sm font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${
+            className={`flex items-center gap-2 pb-3 sm:pb-4 text-sm font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${
               activeTab === "sign"
                 ? "border-slate-900 text-slate-900"
                 : "border-transparent text-slate-500 hover:text-slate-800"
@@ -152,8 +152,8 @@ export default function DoctorDashboard() {
         </div>
       </div>
 
-      {/* 3. Main Content Area */}
-      <div className="transition-all duration-300 ease-in-out">
+      {/* Main Content Area */}
+      <div className="transition-all duration-300 ease-in-out w-full">
         {activeTab === "keygen" ? (
           <KeyGenTab doctor={doctor} />
         ) : (
@@ -203,10 +203,10 @@ function KeyGenTab({ doctor }) {
   };
 
   return (
-    <Card className="p-0 overflow-hidden border border-slate-100 shadow-sm rounded-2xl sm:rounded-3xl bg-white">
+    <Card className="p-0 overflow-hidden border border-slate-100 shadow-sm rounded-2xl sm:rounded-3xl bg-white w-full">
       <div className="grid lg:grid-cols-2">
-        {/* Left Side: Form */}
-        <div className="p-5 sm:p-8 md:p-10 bg-white">
+        {/* Form Section */}
+        <div className="p-5 sm:p-8 md:p-10 bg-white w-full">
           <div className="mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1.5 sm:mb-2">
               Registrasi Kunci Asimetris
@@ -220,38 +220,38 @@ function KeyGenTab({ doctor }) {
 
           <form
             onSubmit={handleGenerateKeys}
-            className="space-y-4 sm:space-y-5"
+            className="space-y-4 sm:space-y-5 w-full"
           >
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-xs sm:text-sm font-semibold text-slate-700">
+            <div className="space-y-1.5 sm:space-y-2 w-full">
+              <label className="text-xs sm:text-sm font-semibold text-slate-700 block">
                 Nama Lengkap & Gelar (Otomatis)
               </label>
               <Input
-                className="bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
+                className="w-full bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
                 value={doctor.name}
                 readOnly
               />
             </div>
 
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-xs sm:text-sm font-semibold text-slate-700">
+            <div className="space-y-1.5 sm:space-y-2 w-full">
+              <label className="text-xs sm:text-sm font-semibold text-slate-700 block">
                 Nomor SIP (Otomatis)
               </label>
               <Input
-                className="bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
+                className="w-full bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed rounded-xl text-sm"
                 value={doctor.sip}
                 readOnly
               />
             </div>
 
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-xs sm:text-sm font-semibold text-slate-700">
+            <div className="space-y-1.5 sm:space-y-2 w-full">
+              <label className="text-xs sm:text-sm font-semibold text-slate-700 block">
                 Passphrase (Pelindung Private Key)
               </label>
-              <div className="relative">
+              <div className="relative w-full">
                 <Input
                   type={showPassphrase ? "text" : "password"}
-                  className="bg-slate-50 border-slate-200 rounded-xl pr-12 text-sm focus:ring-primary-500/10 focus:border-primary-500"
+                  className="w-full bg-slate-50 border-slate-200 rounded-xl pr-12 text-sm focus:ring-primary-500/10 focus:border-primary-500"
                   placeholder="Minimal 6 karakter"
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
@@ -259,7 +259,7 @@ function KeyGenTab({ doctor }) {
                 <button
                   type="button"
                   onClick={() => setShowPassphrase(!showPassphrase)}
-                  className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none min-w-[40px] justify-center"
+                  className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none min-w-[40px] justify-center h-full"
                 >
                   {showPassphrase ? (
                     <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -274,15 +274,15 @@ function KeyGenTab({ doctor }) {
               type="submit"
               variant="primary"
               isLoading={isLoading}
-              className="w-full mt-4 py-3 sm:py-3.5 text-xs sm:text-sm font-bold rounded-xl"
+              className="w-full mt-4 py-3.5 sm:py-3.5 text-sm font-bold rounded-xl"
             >
               {isLoading ? "Memproses..." : "Buat Kunci Digital Saya"}
             </Button>
           </form>
         </div>
 
-        {/* Right Side: Result Status */}
-        <div className="p-5 sm:p-8 md:p-10 bg-[#F9F9F8] flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-hidden">
+        {/* Result Section */}
+        <div className="p-5 sm:p-8 md:p-10 bg-[#F9F9F8] flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-hidden w-full">
           {keys ? (
             <div className="space-y-5 sm:space-y-6 w-full max-w-sm mx-auto z-10 animate-in fade-in zoom-in duration-500">
               <div className="bg-emerald-50 text-emerald-800 p-4 sm:p-5 rounded-2xl border border-emerald-200 flex gap-3.5 items-start">
@@ -298,25 +298,25 @@ function KeyGenTab({ doctor }) {
                 </div>
               </div>
 
-              <div className="space-y-2.5 sm:space-y-3">
+              <div className="space-y-3 sm:space-y-3 w-full">
                 <Button
                   variant="outline"
                   onClick={() => handleDownload("public")}
-                  className="w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 bg-white hover:bg-slate-50 rounded-xl text-xs sm:text-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-white hover:bg-slate-50 rounded-xl text-sm"
                 >
                   <Download className="w-4 h-4" /> Unduh Public Key (.pem)
                 </Button>
                 <Button
                   variant="secondary"
                   onClick={() => handleDownload("private")}
-                  className="w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm"
                 >
                   <Download className="w-4 h-4 text-teal-500" /> Unduh Private
                   Key (.pem)
                 </Button>
               </div>
 
-              <div className="flex items-start gap-2.5 text-xs text-amber-800 bg-amber-50 p-3.5 sm:p-4 rounded-xl border border-amber-200">
+              <div className="flex items-start gap-2.5 text-xs text-amber-800 bg-amber-50 p-4 sm:p-4 rounded-xl border border-amber-200">
                 <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
                 <p>
                   Jangan pernah membagikan <i>Private Key</i> dan{" "}
@@ -325,14 +325,14 @@ function KeyGenTab({ doctor }) {
               </div>
             </div>
           ) : (
-            <div className="text-center text-slate-400 max-w-sm mx-auto z-10 py-6 sm:py-0">
+            <div className="text-center text-slate-400 max-w-sm mx-auto z-10 py-8 sm:py-0 w-full">
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-5 shadow-sm border border-slate-200">
                 <KeyRound className="w-6 h-6 sm:w-8 sm:h-8 text-slate-300" />
               </div>
               <h3 className="text-base sm:text-lg font-bold text-slate-700 mb-1.5">
                 Belum Ada Kunci
               </h3>
-              <p className="text-xs sm:text-sm leading-relaxed text-slate-500">
+              <p className="text-xs sm:text-sm leading-relaxed text-slate-500 px-2">
                 Silakan isi formulir untuk <i>generate public & private key</i>{" "}
                 berdasarkan identitas Anda.
               </p>
@@ -353,13 +353,11 @@ function SignPdfTab({ doctor }) {
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
-  // STATE BARU UNTUK PAYLOAD DATA RESEP
   const [patientName, setPatientName] = useState("");
   const [patientAge, setPatientAge] = useState("");
   const [prescriptionDetails, setPrescriptionDetails] = useState("");
 
   const handleSign = async () => {
-    // Validasi input baru
     if (
       !pdfFile ||
       !keyFile ||
@@ -380,7 +378,6 @@ function SignPdfTab({ doctor }) {
       const pdfBuffer = await pdfFile.arrayBuffer();
       const keyText = await keyFile.text();
 
-      // 1. Buat Objek Payload Resep
       const payloadObj = {
         pasien: patientName,
         usia: patientAge,
@@ -391,33 +388,27 @@ function SignPdfTab({ doctor }) {
       };
       const payloadString = JSON.stringify(payloadObj);
 
-      // 2. Tandatangani String Payload
       const { signature, payloadHash } = await signPayload(
         payloadString,
         keyText,
         passphrase,
       );
 
-      // 3. Masukkan Payload ke dalam Metadata QR Code
       const metadata = {
         issuer: doctor.name,
         sip: doctor.sip,
         date: payloadObj.tanggal,
         hash: payloadHash,
         sig: signature,
-        payload: payloadObj, // Data asli disisipkan ke QR untuk dibaca Apoteker
+        payload: payloadObj,
       };
 
-      // Tempel QR Code ke dokumen PDF via Server Action (Mengembalikan base64 string)
       const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
-
-      // Konversi Base64 string ke Blob untuk unduhan browser (Menghindari penggunaan Buffer di sisi client)
       const pdfBlob = base64ToBlob(base64Pdf, "application/pdf");
 
       triggerDownload(pdfBlob, `signed_${pdfFile.name}`, "application/pdf");
       showToast("success", "Dokumen berhasil ditandatangani dan diunduh.");
 
-      // Reset form
       setPdfFile(null);
       setKeyFile(null);
       setPassphrase("");
@@ -435,32 +426,32 @@ function SignPdfTab({ doctor }) {
   };
 
   return (
-    <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white">
-      <div className="mb-6 sm:mb-8 flex items-center gap-3.5 sm:gap-4">
+    <Card className="p-4 sm:p-8 lg:p-10 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 bg-white w-full">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-4">
         <div className="bg-[#4F648A] text-white p-3 rounded-xl shadow-sm flex-shrink-0">
-          <FolderPlus className="w-5 h-5 sm:w-7 sm:h-7" />
+          <FolderPlus className="w-6 h-6 sm:w-7 sm:h-7" />
         </div>
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
             Tanda Tangani Resep
           </h2>
-          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+          <p className="text-slate-500 text-xs sm:text-sm mt-1 sm:mt-0.5">
             Lengkapi rincian resep untuk dikunci (di-hash) ke dalam QR Code.
           </p>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
-        <div className="lg:col-span-7 space-y-4 sm:space-y-6">
-          {/* STEP 1 */}
-          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
+      <div className="grid lg:grid-cols-12 gap-6 lg:gap-10 w-full">
+        <div className="lg:col-span-7 space-y-5 sm:space-y-6 w-full">
+          {/* Step 1 */}
+          <div className="bg-[#F9F9F8] p-5 sm:p-6 rounded-2xl w-full">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 1
               </span>
               Unggah Latar Dokumen (PDF Kosong/Template)
             </label>
-            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden w-full">
               <FileDropzone
                 accept=".pdf"
                 onFileSelect={setPdfFile}
@@ -469,45 +460,45 @@ function SignPdfTab({ doctor }) {
             </div>
           </div>
 
-          {/* STEP 2 - FORM BARU UNTUK INPUT DATA PAYLOAD */}
-          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
+          {/* Step 2 */}
+          <div className="bg-[#F9F9F8] p-5 sm:p-6 rounded-2xl w-full">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 2
               </span>
               Detail Isi Resep (Dikunci dalam QR)
             </label>
-            <div className="space-y-3">
+            <div className="space-y-3.5 sm:space-y-3 w-full">
               <Input
                 placeholder="Nama Pasien"
                 value={patientName}
                 onChange={(e) => setPatientName(e.target.value)}
-                className="text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                className="w-full text-sm border-slate-200 bg-slate-50 focus:bg-white"
               />
               <Input
                 placeholder="Usia Pasien (Misal: 25 Tahun)"
                 value={patientAge}
                 onChange={(e) => setPatientAge(e.target.value)}
-                className="text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                className="w-full text-sm border-slate-200 bg-slate-50 focus:bg-white"
               />
               <textarea
                 placeholder="Rincian Obat (Nama Obat, Dosis, Aturan Pakai)..."
                 value={prescriptionDetails}
                 onChange={(e) => setPrescriptionDetails(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm focus:border-teal-500 focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none transition-all min-h-[90px] resize-y"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 text-sm focus:border-teal-500 focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none transition-all min-h-[100px] sm:min-h-[90px] resize-y"
               />
             </div>
           </div>
 
-          {/* STEP 3 */}
-          <div className="bg-[#F9F9F8] p-4 sm:p-6 rounded-2xl">
+          {/* Step 3 */}
+          <div className="bg-[#F9F9F8] p-5 sm:p-6 rounded-2xl w-full">
             <label className="text-xs sm:text-sm font-bold text-slate-800 mb-3 sm:mb-4 flex items-center gap-2.5">
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 3
               </span>
               Unggah Kunci Privat (.pem)
             </label>
-            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden w-full">
               <FileDropzone
                 accept=".pem"
                 onFileSelect={setKeyFile}
@@ -517,31 +508,31 @@ function SignPdfTab({ doctor }) {
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR */}
-        <div className="lg:col-span-5">
-          <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6">
+        {/* Sidebar */}
+        <div className="lg:col-span-5 w-full">
+          <div className="bg-[#0B1B3D] text-white p-5 sm:p-8 rounded-2xl sm:rounded-[1.5rem] shadow-xl shadow-slate-900/10 lg:sticky lg:top-6 w-full">
             <h3 className="font-semibold text-base sm:text-lg mb-4 sm:mb-6 flex items-center gap-2.5 border-b border-white/10 pb-4">
               <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300 flex-shrink-0" />
               <span>Otorisasi Penandatanganan</span>
             </h3>
 
-            <div className="space-y-4 sm:space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs sm:text-sm font-medium text-slate-300">
+            <div className="space-y-5 sm:space-y-6 w-full">
+              <div className="space-y-2 w-full">
+                <label className="text-xs sm:text-sm font-medium text-slate-300 block">
                   Passphrase Kunci Privat
                 </label>
-                <div className="relative">
+                <div className="relative w-full">
                   <input
                     type={showPassphrase ? "text" : "password"}
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
                     placeholder="Masukkan sandi pelindung"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 sm:px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all pr-11"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 text-sm text-white placeholder-slate-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all pr-12"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassphrase(!showPassphrase)}
-                    className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-white transition-colors focus:outline-none min-w-[36px] justify-center"
+                    className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-white transition-colors focus:outline-none min-w-[36px] justify-center h-full"
                   >
                     {showPassphrase ? (
                       <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -552,13 +543,13 @@ function SignPdfTab({ doctor }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs sm:text-sm font-medium text-slate-300">
+              <div className="space-y-2 w-full">
+                <label className="text-xs sm:text-sm font-medium text-slate-300 block">
                   Posisi QR Code Tanda Tangan
                 </label>
-                <div className="relative">
+                <div className="relative w-full">
                   <select
-                    className="w-full appearance-none rounded-xl border border-white/10 px-3.5 sm:px-4 py-3 text-xs sm:text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-[#12234A] text-white cursor-pointer outline-none transition-all pr-10"
+                    className="w-full appearance-none rounded-xl border border-white/10 px-3.5 sm:px-4 py-3 sm:py-3.5 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-[#12234A] text-white cursor-pointer outline-none transition-all pr-10"
                     value={qrPos}
                     onChange={(e) => setQrPos(e.target.value)}
                   >
@@ -584,16 +575,16 @@ function SignPdfTab({ doctor }) {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-3 sm:pt-2 w-full">
                 <Button
                   onClick={handleSign}
                   isLoading={isLoading}
                   variant="primary"
-                  className="w-full py-3.5 text-xs sm:text-sm font-bold shadow-teal-900/20"
+                  className="w-full py-4 sm:py-3.5 text-sm font-bold shadow-teal-900/20 rounded-xl"
                 >
                   {isLoading ? "Memproses..." : "Kunci & Terbitkan Dokumen"}
                 </Button>
-                <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-3.5 sm:mt-5 leading-relaxed">
+                <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-4 sm:mt-5 leading-relaxed">
                   Data pasien dan rincian obat akan dikunci mati{" "}
                   <br className="hidden sm:inline" />
                   ke dalam QR Code menggunakan ECDSA P-256.

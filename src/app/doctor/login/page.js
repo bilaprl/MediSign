@@ -26,8 +26,7 @@ export default function DoctorLogin() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  // Mengambil PIN dari .env.local (Default: 1234 jika env belum diset)
-  const VALID_PIN = process.env.NEXT_PUBLIC_DOCTOR_PIN || "1234";
+  const VALID_PIN = process.env.NEXT_PUBLIC_DOCTOR_PIN;
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -38,17 +37,13 @@ export default function DoctorLogin() {
 
     setIsLoading(true);
 
-    // Simulasi proses autentikasi
     setTimeout(() => {
       if (pin === VALID_PIN) {
         const doctorData = doctors.find((doc) => doc.id === selectedDoctorId);
 
         if (doctorData) {
           showToast("success", `Selamat datang, ${doctorData.name}`);
-
-          // Simpan kredensial ke session storage untuk proses KeyGen & Resep
           sessionStorage.setItem("doctorAuth", JSON.stringify(doctorData));
-
           router.push("/doctor/dashboard");
         } else {
           showToast("error", "Data dokter tidak ditemukan.");
@@ -66,15 +61,13 @@ export default function DoctorLogin() {
   };
 
   return (
-    <div className="min-h-[85vh] sm:min-h-[90vh] flex items-center justify-center px-3 sm:px-6 py-6 sm:py-12 relative overflow-hidden">
-      {/* Background Decorative Blur */}
+    <div className="min-h-[100dvh] md:min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] sm:w-[40%] h-[40%] bg-primary-200/30 rounded-full blur-[80px] sm:blur-[120px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] sm:w-[40%] h-[40%] bg-blue-200/30 rounded-full blur-[80px] sm:blur-[120px]"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[80%] md:w-[40%] h-[40%] bg-primary-200/30 rounded-full blur-[80px] sm:blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] md:w-[40%] h-[40%] bg-blue-200/30 rounded-full blur-[80px] sm:blur-[120px]"></div>
       </div>
 
       <div className="w-full max-w-5xl bg-white rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] shadow-xl sm:shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100 relative z-10">
-        {/* Left Side: Image & Branding */}
         <div className="relative w-full md:w-5/12 hidden md:flex flex-col justify-between bg-slate-900 p-8 lg:p-10 min-h-[500px]">
           <img
             src="https://plus.unsplash.com/premium_photo-1673953510107-d5aee40d80a7?q=80&w=774&auto=format&fit=crop"
@@ -107,33 +100,31 @@ export default function DoctorLogin() {
           </div>
         </div>
 
-        {/* Right Side: Form */}
-        <div className="w-full md:w-7/12 p-5 sm:p-8 md:p-10 lg:p-16 flex flex-col justify-center relative bg-white">
-          <div className="md:hidden mb-6">
+        <div className="w-full md:w-7/12 p-6 sm:p-8 md:p-10 lg:p-16 flex flex-col justify-center relative bg-white min-h-[400px]">
+          <div className="md:hidden mb-6 sm:mb-8">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition-colors text-xs font-semibold bg-slate-100 px-3 py-1.5 rounded-full active:scale-95"
+              className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition-colors text-xs font-semibold bg-slate-100 px-3 py-1.5 rounded-full active:scale-95 w-fit"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Beranda
             </Link>
           </div>
 
-          <div className="mb-6 sm:mb-8 space-y-1.5 sm:space-y-2">
+          <div className="mb-6 sm:mb-8 space-y-2">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
               Autentikasi Dokter
             </h1>
-            <p className="text-slate-500 text-xs sm:text-sm md:text-base leading-relaxed">
+            <p className="text-slate-500 text-sm md:text-base leading-relaxed">
               Silakan pilih identitas dokter dan masukkan PIN keamanan untuk
               mengakses ruang kerja klinis Anda.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6">
-            {/* Input Select Dokter */}
             <div className="space-y-2">
               <label
                 htmlFor="doctorId"
-                className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
+                className="text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
               >
                 <UserRound className="w-4 h-4 text-primary-600" /> Identitas
                 Dokter
@@ -141,7 +132,7 @@ export default function DoctorLogin() {
               <div className="relative">
                 <select
                   id="doctorId"
-                  className="w-full appearance-none rounded-xl border border-slate-300 px-3.5 sm:px-4 py-3 sm:py-3.5 text-slate-700 text-sm sm:text-base focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 bg-slate-50 hover:bg-white transition-colors cursor-pointer pr-10"
+                  className="w-full appearance-none rounded-xl border border-slate-300 px-4 py-3.5 text-slate-700 text-sm sm:text-base focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 bg-slate-50 hover:bg-white transition-colors cursor-pointer pr-10"
                   value={selectedDoctorId}
                   onChange={(e) => setSelectedDoctorId(e.target.value)}
                 >
@@ -154,9 +145,9 @@ export default function DoctorLogin() {
                     </option>
                   ))}
                 </select>
-                <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
                   <svg
-                    className="w-4 h-4 sm:w-5 sm:h-5"
+                    className="w-5 h-5"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -172,11 +163,10 @@ export default function DoctorLogin() {
               </div>
             </div>
 
-            {/* Input PIN */}
             <div className="space-y-2">
               <label
                 htmlFor="pinInput"
-                className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
+                className="text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer"
               >
                 <Lock className="w-4 h-4 text-primary-600" /> PIN Akses
               </label>
@@ -189,35 +179,33 @@ export default function DoctorLogin() {
                   placeholder="Masukkan 4 digit PIN"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  className="w-full rounded-xl border-slate-300 pl-3.5 sm:pl-4 pr-11 py-3 sm:py-3.5 text-sm sm:text-base focus:ring-4 focus:ring-primary-500/10 bg-slate-50 hover:bg-white transition-colors"
+                  className="w-full rounded-xl border-slate-300 pl-4 pr-12 py-3.5 text-sm sm:text-base focus:ring-4 focus:ring-primary-500/10 bg-slate-50 hover:bg-white transition-colors"
                   maxLength={4}
                 />
                 <button
                   type="button"
                   onClick={togglePinVisibility}
-                  className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none min-w-[40px] justify-center"
+                  className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none min-w-[44px] justify-center"
                   aria-label={showPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
                 >
                   {showPin ? (
-                    <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <EyeOff className="w-5 h-5" />
                   ) : (
-                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Eye className="w-5 h-5" />
                   )}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full py-3.5 sm:py-4 text-sm sm:text-base font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-h-[48px]"
+              className="w-full py-4 text-sm sm:text-base font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-h-[52px]"
               isLoading={isLoading}
             >
               Masuk ke Ruang Kerja
             </Button>
           </form>
 
-          {/* Footer Info */}
           <div className="mt-8 sm:mt-10 flex items-center justify-center gap-1.5 text-xs sm:text-sm text-slate-400 text-center">
             <ShieldCheck className="w-4 h-4 text-success-500 flex-shrink-0" />
             <p>
