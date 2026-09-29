@@ -449,7 +449,7 @@ function SignPdfTab({ doctor }) {
               <span className="bg-[#4A3B32] text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs shadow-sm flex-shrink-0">
                 1
               </span>
-              Unggah Latar Dokumen (PDF Kosong/Template)
+              Unggah Latar Dokumen
             </label>
             <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden w-full">
               <FileDropzone
