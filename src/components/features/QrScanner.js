@@ -23,33 +23,49 @@ export default function QrScanner({ onScanResult }) {
   const handleProcessData = async (rawText) => {
     try {
       const dataObj = JSON.parse(rawText);
+      const isCountersign = dataObj.status === "COUNTERSIGNED";
 
-      if (!dataObj.payload || !dataObj.hash || !dataObj.sig) {
+      // 1. CEK KELENGKAPAN KRIPTOGRAFI UTAMA
+      if (!dataObj.hash || !dataObj.sig) {
         showToast(
           "error",
-          "INVALID: QR Code tidak memiliki Tanda Tangan Digital yang sah!",
+          "INVALID: QR Code tidak memiliki Tanda Tangan Digital yang sah!"
         );
         return;
       }
 
-      const payloadString = JSON.stringify(dataObj.payload);
-      const recalculatedHash = await calculateSHA256(payloadString);
+      // 2. JIKA QR RESEP DOKTER: CEK PAYLOAD & HASH
+      if (!isCountersign) {
+        if (!dataObj.payload) {
+          showToast(
+            "error",
+            "INVALID: QR Code tidak memiliki data payload resep!"
+          );
+          return;
+        }
 
-      if (recalculatedHash !== dataObj.hash) {
-        showToast(
-          "error",
-          "PERINGATAN: Data rincian resep telah dimanipulasi (Hash Mismatch)!",
-        );
-        return;
+        const payloadString = JSON.stringify(dataObj.payload);
+        const recalculatedHash = await calculateSHA256(payloadString);
+
+        if (recalculatedHash !== dataObj.hash) {
+          showToast(
+            "error",
+            "PERINGATAN: Data rincian resep telah dimanipulasi (Hash Mismatch)!"
+          );
+          return;
+        }
       }
 
+      // 3. SUSUN DATA UNTUK DITAMPILKAN DI UI
       const issuerName =
-        dataObj.issuer || dataObj.payload?.dokter || "Dokter Penanggung Jawab";
+        dataObj.issuer ||
+        dataObj.payload?.dokter ||
+        (isCountersign ? "Apoteker Bertugas" : "Dokter Penanggung Jawab");
 
       const matchedDoctor = doctorsData.find(
         (doc) =>
           doc.name.toLowerCase().includes(issuerName.toLowerCase()) ||
-          (dataObj.sip && doc.sip === dataObj.sip),
+          (dataObj.sip && doc.sip === dataObj.sip)
       );
 
       const parsedResult = {
@@ -63,14 +79,22 @@ export default function QrScanner({ onScanResult }) {
         hash: dataObj.hash || "-",
         signature: dataObj.sig || "-",
         payload: dataObj.payload || null,
+        status: dataObj.status || "SIGNED",
+        isCountersign: isCountersign,
       };
 
-      showToast("success", "QR Code Resep Berhasil Terbaca & Terverifikasi!");
+      showToast(
+        "success",
+        isCountersign
+          ? "QR Code Pengesahan Apoteker Berhasil Terbaca!"
+          : "QR Code Resep Berhasil Terbaca & Terverifikasi!"
+      );
+
       if (onScanResult) onScanResult(parsedResult);
     } catch (e) {
       showToast(
         "error",
-        "Format QR Code tidak valid atau bukan diterbitkan oleh sistem MediSign.",
+        "Format QR Code tidak valid atau bukan diterbitkan oleh sistem MediSign."
       );
     }
   };
@@ -104,13 +128,13 @@ export default function QrScanner({ onScanResult }) {
                 .catch(() => setIsCameraActive(false));
             }
           },
-          () => {},
+          () => {}
         )
         .catch((err) => {
           console.error("Gagal membuka kamera:", err);
           showToast(
             "error",
-            "Izin kamera ditolak atau kamera tidak ditemukan.",
+            "Izin kamera ditolak atau kamera tidak ditemukan."
           );
           setIsCameraActive(false);
         });
@@ -128,46 +152,43 @@ export default function QrScanner({ onScanResult }) {
   };
 
   return (
-    <div className="w-full flex flex-col h-full min-h-[400px] md:min-h-[450px] lg:min-h-[500px] rounded-2xl md:rounded-3xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm relative">
+    <div className="w-full flex flex-col h-full min-h-[320px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm relative">
       {isCameraActive ? (
         <div className="relative w-full flex-grow flex flex-col bg-black/95">
-          <div
-            id="reader"
-            className="w-full h-full max-w-sm md:max-w-lg lg:max-w-xl mx-auto my-auto flex items-center justify-center overflow-hidden"
-          />
-          <div className="absolute top-4 left-4 bg-black/70 text-white text-[10px] sm:text-xs md:text-sm font-medium px-3 sm:px-4 py-1.5 sm:py-2 rounded-full flex items-center gap-2 backdrop-blur-md z-10 shadow-lg">
-            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div id="reader" className="w-full h-full max-w-md mx-auto my-auto" />
+          <div className="absolute top-4 left-4 bg-black/70 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2 backdrop-blur-md z-10">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             Pemindai Aktif
           </div>
 
-          <div className="p-4 sm:p-5 md:p-6 bg-white border-t border-slate-200 flex justify-center z-10 relative mt-auto w-full">
+          <div className="p-4 bg-white border-t border-slate-200 flex justify-center z-10 relative mt-auto">
             <Button
               onClick={toggleCamera}
               variant="secondary"
-              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 w-full md:w-auto md:min-w-[250px] py-3 sm:py-3.5 rounded-xl text-sm sm:text-base font-semibold border-slate-200 transition-all"
+              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 w-full py-2.5 rounded-xl font-semibold border-slate-200"
             >
-              <CameraOff className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> Tutup Kamera
+              <CameraOff className="w-4 h-4 mr-2" /> Tutup Kamera
             </Button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-full flex-grow p-6 sm:p-8 md:p-12 text-center my-auto w-full">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-200 rounded-full flex items-center justify-center mb-4 sm:mb-5 lg:mb-6 shadow-inner">
-            <CameraOff className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400" />
+        <div className="flex flex-col items-center justify-center h-full flex-grow p-6 text-center my-auto">
+          <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-4">
+            <CameraOff className="w-8 h-8 text-slate-400" />
           </div>
-          <h3 className="font-bold text-slate-800 text-base sm:text-lg md:text-xl lg:text-2xl mb-2 sm:mb-3">
+          <h3 className="font-bold text-slate-800 text-base sm:text-lg mb-2">
             Kamera Non-Aktif
           </h3>
-          <p className="text-xs sm:text-sm md:text-base text-slate-500 max-w-xs sm:max-w-sm md:max-w-md mb-6 sm:mb-8 md:mb-10 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-500 max-w-xs mb-6">
             Aktifkan kamera untuk memindai QR Code resep secara langsung dari
-            dokumen fisik. Pastikan pencahayaan cukup.
+            dokumen fisik.
           </p>
           <Button
             onClick={toggleCamera}
             variant="primary"
-            className="flex items-center justify-center gap-2 py-3.5 sm:py-4 px-6 sm:px-8 w-full md:w-auto rounded-xl shadow-sm text-sm sm:text-base font-bold transition-transform active:scale-95"
+            className="flex items-center gap-2 py-3 rounded-xl shadow-sm"
           >
-            <Camera className="w-4 h-4 sm:w-5 sm:h-5" /> Buka Kamera Pemindai
+            <Camera className="w-4 h-4" /> Buka Kamera Pemindai
           </Button>
         </div>
       )}

@@ -25,22 +25,9 @@ import {
   BadgeCheck,
   UserSquare2,
   KeyRound,
-  FileText,
   RefreshCw,
-  Lock,
 } from "lucide-react";
 
-// Helper untuk mengubah base64 menjadi Blob secara aman di browser tanpa modul Node.js "Buffer"
-const base64ToBlob = (base64, type = "application/pdf") => {
-  const byteCharacters = atob(base64);
-  const byteArray = new Uint8Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteArray[i] = byteCharacters.charCodeAt(i);
-  }
-  return new Blob([byteArray], { type });
-};
-
-// Helper untuk memicu unduhan file secara aman (Delay revocation agar file tidak 0 KB)
 const triggerDownload = (content, filename, type = "application/pdf") => {
   const blob =
     content instanceof Blob ? content : new Blob([content], { type });
@@ -51,7 +38,6 @@ const triggerDownload = (content, filename, type = "application/pdf") => {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // Beri jeda 1 detik agar browser selesai mengalirkan data file
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
@@ -153,10 +139,7 @@ function VerifyTab() {
 
   const handleVerify = async () => {
     if (!pdfFile || !pubKeyFile) {
-      showToast(
-        "error",
-        "Mohon unggah file PDF Resep dan Kunci Publik Dokter (.pem)",
-      );
+      showToast("error", "Mohon unggah file PDF Resep dan Kunci Publik (.pem)");
       return;
     }
 
@@ -166,43 +149,72 @@ function VerifyTab() {
       const pdfBuffer = await pdfFile.arrayBuffer();
       const pubKeyText = await pubKeyFile.text();
 
-      // 1. Ekstrak Metadata Kriptografi & Payload dari PDF
+      // 1. Load PDF & Ekstrak Data Dokter
       const pdfDoc = await PDFDocument.load(pdfBuffer);
       const pdfAuthor = pdfDoc.getAuthor() || "";
       const storedHash = pdfDoc.getSubject() || "";
       const rawKeywords = pdfDoc.getKeywords();
-      const storedSig = Array.isArray(rawKeywords)
-        ? rawKeywords[0]
-        : rawKeywords || "";
+      const storedSig = Array.isArray(rawKeywords) ? rawKeywords[0] : (rawKeywords || "");
       const creatorPayload = pdfDoc.getCreator() || "";
+
+      // 2. Ekstrak Data Apoteker (Lebih Aman dengan metode pencarian JSON)
+      const titleData = pdfDoc.getTitle() || pdfDoc.getProducer() || "";
+      let countersignInfo = null;
+      try {
+        const jsonStart = titleData.indexOf('{');
+        const jsonEnd = titleData.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const parsed = JSON.parse(titleData.substring(jsonStart, jsonEnd + 1));
+          if (parsed.status === "COUNTERSIGNED") {
+            countersignInfo = parsed;
+          }
+        }
+      } catch (e) {
+        console.error("Gagal membaca data Apoteker:", e);
+      }
 
       let parsedPayload = null;
       if (creatorPayload) {
         try {
           parsedPayload = JSON.parse(creatorPayload);
-        } catch (err) {
-          parsedPayload = null;
-        }
+        } catch (err) {}
       }
 
       if (!storedHash || !storedSig) {
-        throw new Error(
-          "Dokumen PDF ini tidak memiliki Digital Signature yang sah dari sistem MediSign.",
-        );
+        throw new Error("Dokumen PDF ini tidak memiliki Digital Signature yang sah dari sistem MediSign.");
       }
-
       if (!parsedPayload || !parsedPayload.resep) {
-        throw new Error(
-          "Data rincian resep di dalam dokumen telah hilang atau rusak akibat manipulasi pihak ketiga (Tampered).",
-        );
+        throw new Error("Data rincian resep di dalam dokumen telah hilang atau rusak akibat manipulasi pihak ketiga (Tampered).");
       }
 
-      // 2. Cari Data Dokter di JSON berdasarkan nama Author/SIP
+      // ==========================================================
+      // 3. LOGIKA CERDAS: CEK KEDUA TANDA TANGAN (DOUBLE CHECK)
+      // ==========================================================
+      let isDoctorValid = false;
+      let isApotekerValid = false;
+
+      // Uji A: Coba cocokkan Kunci yang diunggah dengan TTD Dokter
+      try {
+        isDoctorValid = await verifySignature(storedHash, storedSig, pubKeyText);
+      } catch (e) {}
+
+      // Uji B: Coba cocokkan Kunci yang diunggah dengan TTD Apoteker
+      if (countersignInfo && countersignInfo.hash && countersignInfo.sig) {
+        try {
+          isApotekerValid = await verifySignature(countersignInfo.hash, countersignInfo.sig, pubKeyText);
+        } catch (e) {}
+      }
+
+      // Jika kedua uji gagal, tolak dokumen!
+      if (!isDoctorValid && !isApotekerValid) {
+        throw new Error("Kunci Publik tidak cocok dengan Tanda Tangan Dokter maupun Apoteker, atau dokumen dimanipulasi.");
+      }
+
+      // Cari Nama Dokter dari Database
       let matchedDoctor = doctorsData.find(
         (doc) =>
-          (pdfAuthor &&
-            doc.name.toLowerCase().includes(pdfAuthor.toLowerCase())) ||
-          (parsedPayload?.sip && doc.sip === parsedPayload.sip),
+          (pdfAuthor && doc.name.toLowerCase().includes(pdfAuthor.toLowerCase())) ||
+          (parsedPayload?.sip && doc.sip === parsedPayload.sip)
       );
 
       if (!matchedDoctor) {
@@ -213,37 +225,24 @@ function VerifyTab() {
         };
       }
 
-      // 3. Verifikasi Tanda Tangan Kriptografi (ECDSA P-256)
-      const isValid = await verifySignature(storedHash, storedSig, pubKeyText);
-
-      if (isValid) {
-        setVerifyResult({
-          status: "valid",
-          metadata: {
-            issuer: parsedPayload?.dokter || matchedDoctor.name,
-            sip: parsedPayload?.sip || matchedDoctor.sip,
-            specialty: matchedDoctor.specialty || "Umum",
-            timestamp: parsedPayload?.tanggal
-              ? new Date(parsedPayload.tanggal).toLocaleDateString("id-ID", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })
-              : new Date().toLocaleDateString("id-ID", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                }),
-            hash: storedHash.substring(0, 32) + "...",
-            payload: parsedPayload,
-          },
-        });
-        showToast("success", "Dokumen terverifikasi VALID dan Asli.");
-      } else {
-        throw new Error(
-          "Kunci Publik Dokter tidak cocok dengan Tanda Tangan Digital pada PDF, atau data resep telah dimodifikasi (Tampering Detected).",
-        );
-      }
+      // Set Hasil Sukses
+      setVerifyResult({
+        status: "valid",
+        verifiedBy: isApotekerValid ? "Apoteker" : "Dokter", // Tentukan kunci siapa yang berhasil
+        metadata: {
+          issuer: parsedPayload?.dokter || matchedDoctor.name,
+          sip: parsedPayload?.sip || matchedDoctor.sip,
+          specialty: matchedDoctor.specialty || "Umum",
+          timestamp: parsedPayload?.tanggal
+            ? new Date(parsedPayload.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+            : new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
+          hash: storedHash,
+          payload: parsedPayload,
+          countersign: countersignInfo, // Masukkan data Apoteker ke panel UI
+        },
+      });
+      
+      showToast("success", `Dokumen terverifikasi Asli menggunakan Kunci ${isApotekerValid ? 'Apoteker' : 'Dokter'}.`);
     } catch (e) {
       showToast("error", e.message || "Gagal memproses verifikasi dokumen.");
       setVerifyResult({ status: "invalid", message: e.message });
@@ -343,16 +342,16 @@ function VerifyTab() {
                     Dokumen Valid & Asli
                   </h4>
                   <p className="text-xs text-emerald-700 leading-relaxed">
-                    Integritas data terjamin. Tanda tangan digital cocok dengan
-                    kunci publik dokter.
+                    Integritas data terjamin. Tanda tangan digital cocok dengan kunci publik <b className="uppercase">{verifyResult.verifiedBy}</b>.
                   </p>
                 </div>
               </div>
 
+              {/* TAMPILAN DATA DOKTER & RESEP */}
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3 text-xs sm:text-sm">
                 <div>
                   <span className="text-slate-400 font-medium block text-[11px]">
-                    Penerbit Resmi
+                    Penerbit Resmi (Dokter)
                   </span>
                   <span className="font-bold text-slate-800">
                     {verifyResult.metadata?.issuer || "-"}
@@ -389,6 +388,53 @@ function VerifyTab() {
                   </code>
                 </div>
               </div>
+
+              {/* TAMPILAN PENGESAHAN APOTEKER (Tampil Hanya Jika Sudah Disahkan) */}
+              {verifyResult.metadata?.countersign && (
+                <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <h4 className="font-bold text-emerald-900 text-xs sm:text-sm">
+                        Pengesahan Apoteker (Countersigned)
+                      </h4>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      TERVERIFIKASI
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-3 rounded-xl border border-emerald-100">
+                    <div>
+                      <p className="text-slate-400 font-medium text-[11px]">
+                        Apoteker Pengesah:
+                      </p>
+                      <p className="font-bold text-slate-800">
+                        {verifyResult.metadata.countersign.issuer ||
+                          "Apoteker Bertugas"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-400 font-medium text-[11px]">
+                        Tanggal Pengesahan:
+                      </p>
+                      <p className="font-bold text-slate-800">
+                        {verifyResult.metadata.countersign.date || "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-full">
+                      <p className="text-slate-400 font-medium text-[11px]">
+                        Tanda Tangan Digital Apoteker (ECDSA):
+                      </p>
+                      <p className="font-mono text-[10px] text-emerald-700 bg-emerald-50/60 p-1.5 rounded border border-emerald-200 break-all mt-0.5">
+                        {verifyResult.metadata.countersign.sig || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Button
                 onClick={resetVerification}
@@ -463,12 +509,10 @@ function ScannerTab() {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
-        {/* Kolom Kiri: Kamera Scanner */}
         <div className="lg:col-span-6 bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
           <QrScanner onScanResult={(data) => setLastScannedResult(data)} />
         </div>
 
-        {/* Kolom Kanan: Hasil Pemindaian */}
         <div className="lg:col-span-6">
           {lastScannedResult ? (
             <div className="bg-[#F9F9F8] p-5 sm:p-6 rounded-2xl border border-slate-200 space-y-4 animate-in fade-in duration-300">
@@ -477,7 +521,59 @@ function ScannerTab() {
                 Pemindaian QR Code
               </h3>
 
-              {parsedData?.payload ? (
+              {/* JIKA MESPANDI QR PENGESAHAN APOTEKER (COUNTERSIGNED) */}
+              {parsedData?.isCountersign || parsedData?.status === "COUNTERSIGNED" ? (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
+                    <span className="font-bold text-emerald-900 text-xs sm:text-sm flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Pengesahan Apoteker (Countersigned)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      SAH
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs bg-white p-3 rounded-xl border border-emerald-100">
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[11px]">
+                        Apoteker Pengesah:
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {parsedData.issuer || "Apoteker Bertugas"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[11px]">
+                        Tanggal Pengesahan:
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {parsedData.date || "-"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[11px]">
+                        Hash Dokumen Disahkan (SHA-256):
+                      </span>
+                      <code className="text-[10px] font-mono text-slate-600 bg-slate-50 p-1.5 rounded block break-all border border-slate-200 mt-0.5">
+                        {parsedData.hash}
+                      </code>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[11px]">
+                        Tanda Tangan Digital Apoteker (ECDSA):
+                      </span>
+                      <code className="text-[10px] font-mono text-emerald-700 bg-emerald-50/60 p-1.5 rounded block break-all border border-emerald-200 mt-0.5">
+                        {parsedData.signature}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              ) : parsedData?.payload ? (
+                /* JIKA MEMINDAN QR RESEP DOKTER */
                 <div className="space-y-3 text-xs sm:text-sm">
                   <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">
@@ -549,14 +645,13 @@ function CountersignTab() {
   const [pdfFile, setPdfFile] = useState(null);
   const [keyFile, setKeyFile] = useState(null);
   const [passphrase, setPassphrase] = useState("");
-  const [qrPos, setQrPos] = useState("bottom-left"); // State posisi QR apoteker
+  const [qrPos, setQrPos] = useState("bottom-left");
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
   const [genPassphrase, setGenPassphrase] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Fungsi untuk Membuat Kunci Apoteker
   const handleGenerateKeys = async () => {
     if (!genPassphrase) {
       showToast(
@@ -591,7 +686,6 @@ function CountersignTab() {
     }
   };
 
-  // Fungsi untuk Tanda Tangan Ganda (Countersign)
   const handleCountersign = async () => {
     if (!pdfFile || !keyFile || !passphrase) {
       showToast(
@@ -638,7 +732,6 @@ function CountersignTab() {
         status: "COUNTERSIGNED",
       };
 
-      // Menempelkan QR Code sesuai posisi yang dipilih oleh Apoteker
       const base64Pdf = await appendQrToPdf(pdfBuffer, metadata, qrPos);
 
       const pdfBlob = new Blob([Buffer.from(base64Pdf, "base64")], {
@@ -769,7 +862,6 @@ function CountersignTab() {
                   />
                 </div>
 
-                {/* PILIHAN POSISI QR CODE UNTUK APOTEKER */}
                 <div>
                   <label className="block text-[11px] sm:text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
                     Posisi QR Code Tanda Tangan
